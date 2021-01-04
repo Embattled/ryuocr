@@ -25,14 +25,22 @@ void dataset::clear(){
 void dataset::printInfo(){
     printf("Number of images: %d\n",num);
     if(num>0){
-        // for(int i=0;i<num;i++){
-        for(int i=0;i<num&&i<20;i++){
+        for(int i=0;i<num;i++){
+        // for(int i=0;i<num&&i<20;i++){
             printf("label: %d\t",labels[i]);
             mats[i].printInfo();
         }
     }
 }
-
+void dataset::printInfoHead(){
+    printf("Number of images: %d\n",num);
+    if(num>0){
+        for(int i=0;i<num&&i<10;i++){
+            printf("label: %d\t",labels[i]);
+            mats[i].printInfo();
+        }
+    }
+}
 int dataset::initialize(int num){
     if(num<=0)return -1;
     if(this->num==num)return 0;

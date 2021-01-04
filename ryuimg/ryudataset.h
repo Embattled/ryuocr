@@ -22,6 +22,7 @@ namespace ryu{
         ~dataset();
         void clear();
         void printInfo();
+        void printInfoHead();
 
         // read idicDataset
         int loadIdic(const char* filename);

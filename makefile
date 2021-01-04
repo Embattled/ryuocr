@@ -17,9 +17,12 @@ $(IMG_O):%.o:%.cpp
 
 	
 
-.PHONY : clean testpath
+.PHONY : clean testpath testcpp
 clean:
 	rm -rf ryuimg/*.o *.o ryuocr a.out
 
 testpath:
 	@echo $(IMG_O)
+
+testcpp:
+	$(CC) $(LFLAGS) testcpp.cpp -o testcpp

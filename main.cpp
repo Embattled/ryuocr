@@ -4,7 +4,6 @@
 #include "ryuimg/ryudataset.h"
 #include "ryuimg/ryumat.h"
 
-
 int main(int argc, char const *argv[])
 {
     ryu::dataset mydataset;
