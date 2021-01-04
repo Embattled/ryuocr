@@ -1,3 +1,9 @@
 /FH*
 FH*
 *.o
+
+/result
+/test
+*.csv
+test*.*
+ryuocr
