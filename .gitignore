@@ -2,7 +2,6 @@
 FH*
 *.o
 
-/result
 /test
 *.csv
 test*.*
