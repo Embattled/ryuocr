@@ -1,7 +1,7 @@
 import pathlib
 import os.path
 
-def getImagesPath(dirpath):
+def getFilesPath(dirpath):
     """ 
     Input dirpath and return list of files path
      """

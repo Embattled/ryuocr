@@ -1,8 +1,19 @@
+# C++ files
+*.o
+ryuocr
+
+# horie files
 /FH*
 FH*
-*.o
 
 /test
 *.csv
 test*.*
-ryuocr
+
+# other
+/graph
+
+# python files
+/__pycache__
+__pycache__/
+*.pt

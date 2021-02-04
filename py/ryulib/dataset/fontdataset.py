@@ -1,7 +1,6 @@
 from PIL import Image
 from torchvision import transforms
 
-
 from baseset import RyuImageset
 
 # 当然出来的时候已经全都变成了tensor
@@ -21,8 +20,6 @@ class FontTrainSet(RyuImageset):
             std=[0.229, 0.224, 0.225]
         )
         self.preprocess = transforms.Compose([
-            # transforms.Scale(256),
-            # transforms.CenterCrop(224),
             transforms.ToTensor(),
             self.normalize
         ])

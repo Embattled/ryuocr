@@ -43,7 +43,7 @@ if __name__ == '__main__':
     import utils
 
     fontImageDirPath = "/home/eugene/workspace/dataset/fontImage/"
-    fontImagesPath = utils.getImagesPath(fontImageDirPath)
+    fontImagesPath = utils.getFilesPath(fontImageDirPath)
     fontlabels = []
     for path in fontImagesPath:
         fontlabels.append(pathlib.Path(path).stem)
