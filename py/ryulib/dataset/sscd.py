@@ -36,9 +36,9 @@ class SSCDset(RyuImageset):
 
 
 def getCodeJPSC():
-    labelFile = "/home/eugene/workspace/dataset/JPSC1400-20201218/labelryu.txt"
+    labelFile = "/home/eugene/workspace/dataset/JPSC1400-20201218/label.csv"
     jpscLabels = list(pandas.read_csv(
-        labelFile, index_col=0)["Unicode"])
+        labelFile, index_col=0)["utfcode"])
     return jpscLabels
 
 
@@ -67,22 +67,22 @@ class JPSC1400(SSCDset):
 
 
 if __name__ == '__main__':
-    import pandas
-    # names=['index','percentcode','character']
-    # jpscpath="/home/eugene/workspace/dataset/JPSC1400-20201218/label.txt"
-    # jpsclabel=pandas.read_csv(jpscpath,names=names,sep=" ",index_col='index')
-    # jpsclabel.to_csv("/home/eugene/workspace/dataset/JPSC1400-20201218/labelryu.txt")
+    import pandas as pd
+    
+    oldPath="/home/eugene/workspace/dataset/JPSC1400-20201218/labelryu.txt"
+    jpsclabel= pd.read_csv(oldPath)
+    print(jpsclabel.head())
 
-    # jpscpath="/home/eugene/workspace/dataset/JPSC1400-20201218/labelryu.txt"
-    # jpsclabel=pandas.read_csv(jpscpath,index_col=0)
-    # jpsclabel["Unicode"]=kanji2unicode(jpsclabel["character"].values.flatten())
-    # print(jpsclabel.head())
-    # jpsclabel.to_csv("/home/eugene/workspace/dataset/JPSC1400-20201218/labelryu.txt")
+    newLabel=jpsclabel[["character","Unicode"]]
+    u10=newLabel["Unicode"].values.flatten()
+    u16=[]
+    for u in u10:
+        u16.append(str(hex(int(u))).upper()[2:])
 
-    # from torch.utils.data import Dataset, DataLoader
-    # JPSC=JPSC1400()
-    # # print(JPSC.jpscLabels)
-    # testLoader=DataLoader(JPSC,shuffle=False,batch_size=5)
-    # for images,labels in testLoader:
-    #     print(images.size())
-    #     print(labels)
+    newLabel["Unicode"]=u16
+    newLabel.columns=["char","utfcode"]
+    newLabel.to_csv("/home/eugene/workspace/dataset/JPSC1400-20201218/label.csv")
+    print(newLabel.head())
+    # newLabel["Unicode"]=hex((newLabel["Unicode"].values))
+    # print(newLabel.head())
+

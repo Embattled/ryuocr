@@ -1,4 +1,3 @@
-from PIL import Image
 from torchvision import transforms
 
 from baseset import RyuImageset
@@ -8,7 +7,7 @@ from baseset import RyuImageset
 
 class FontTrainSet(RyuImageset):
     # Init
-    def __init__(self, imagePaths, labels, size=64, loader=None):
+    def __init__(self, images, labels, size=64, loader=None):
         """
         imagesPaths: List of all font images's path
         labels      : List of all font images's unicode
@@ -20,17 +19,16 @@ class FontTrainSet(RyuImageset):
             std=[0.229, 0.224, 0.225]
         )
         self.preprocess = transforms.Compose([
-            transforms.ToTensor(),
+            transforms.Resize((size,size)),
             self.normalize
         ])
 
-        def font_loader(path):
-            img_pil = Image.open(path)
-            img_pil = img_pil.resize((size, size))
-            img_tensor = self.preprocess(img_pil)
+        def font_loader(image):
+            image=transforms.functional.convert_image_dtype(image)
+            img_tensor = self.preprocess(image)
             return img_tensor
 
         if(loader == None):
-            super().__init__(imagePaths, labels, font_loader)
+            super().__init__(images, labels, font_loader)
         else:
-            super().__init__(imagePaths, labels, loader)
+            super().__init__(images, labels, loader)

@@ -6,21 +6,21 @@ from PIL import Image, ImageChops
 
 class RyuImageset(Dataset):
     # Init
-    def __init__(self, imagePaths, labels, loader=None):
+    def __init__(self, images, labels, loader=None):
         """
-        imagesPaths: List of all font images's path
+        images      : List of all font images's path
         labels      : List of all font images's unicode
-        loader     : function read a path and return images tensor
+        loader      : function read a path and return images tensor
         """
-        self.imagesPaths = imagePaths
+        self.images = images
         self.labels = labels
 
         self.preprocess = transforms.Compose([
             transforms.ToTensor(),
         ])
 
-        def default_loader(path):
-            img_pil = Image.open(path)
+        def default_loader(image):
+            img_pil = Image.open(image)
             img_tensor = self.preprocess(img_pil)
             return img_tensor
         if loader==None:
@@ -29,13 +29,13 @@ class RyuImageset(Dataset):
             self.loader=loader
 
     def __getitem__(self, index):
-        path = self.imagesPaths[index]
-        img_tensor = self.loader(path)
+        image = self.images[index]
+        img_tensor = self.loader(image)
         label = self.labels[index]
         return img_tensor, label
 
     def __len__(self):
-        return len(self.imagesPaths)
+        return len(self.images)
 
 
 if __name__ == '__main__':
