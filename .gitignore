@@ -1,5 +1,6 @@
 # C++ files
 *.o
+*.out
 ryuocr
 
 # horie files
@@ -12,8 +13,12 @@ test*.*
 
 # other
 /graph
+*.png
 
 # python files
 /__pycache__
 __pycache__/
 *.pt
+
+# system output
+*.txt

@@ -1,3 +1,4 @@
+from socket import gethostname
 import torch
 import torch.nn as nn
 import torch.tensor
@@ -17,6 +18,33 @@ import pandas as pd
 
 import sys
 import ryulib
+from ryulib import transform as rt
+
+# ------------program global config -----------
+import time
+nowTimeStr = time.strftime("%Y%m%d%H%M%S")
+myhostname = gethostname()
+
+# Set print goal
+outputScreen = False
+# outputScreen = True
+
+
+# Set weather show trainset example
+showExample=False
+# showExample = True
+
+# Network model save path
+savePath = '/home/eugene/workspace/ryuocr/py/trained/'+myhostname+'lastTrained.pt'
+
+
+if not outputScreen:
+    outputfilename = "/home/eugene/workspace/ryuocr/py/output/output_" + \
+        myhostname+"_"+nowTimeStr+".txt"
+    pfile = open(outputfilename, mode='w')
+    sys.stdout = pfile
+
+# ------------ Run ------------------
 
 # Label Dict
 labelData = pd.read_csv(
@@ -30,6 +58,7 @@ trainLabel = torch.load(
     "/home/eugene/workspace/ryuocr/py//tensordata/7font3107label.pt")
 originData = torch.load(
     "/home/eugene/workspace/ryuocr/py//tensordata/7font3107img.pt")
+print("Loding font image success.")
 
 # Copy original data
 trainData = originData.clone().detach()
@@ -39,26 +68,48 @@ jpsc1400Data = torch.load(
     "/home/eugene/workspace/ryuocr/py/tensordata/jpsc1400tensor64.pt")
 jpsc1400Label = torch.load(
     "/home/eugene/workspace/ryuocr/py/tensordata/jpsc1400label3107.pt")
+print("Loding jpsc1400 image success.")
 
 
-# DataLoder Function
-# ----define hog loader-----
-
-def hog_loader(image):
-    img_ski = feature.hog(image.numpy().transpose(
-        (1, 2, 0))).astype(numpy.float32)
-    img_tensor = torch.from_numpy(img_ski)
-    return img_tensor
-
-
-# ----define uint8 loader
+# Define Transforms
 normalize = transforms.Normalize(
     mean=[0.485, 0.456, 0.406],
     std=[0.229, 0.224, 0.225]
 )
 preprocess = transforms.Compose([
+    # transforms.RandomPerspective(),
+    # transforms.RandomAffine(10, scale=(0.9,1.1),shear=(-10, 10, -10, 10)),
     normalize
 ])
+
+
+def fpreprocess(trainData, originData):
+    rt.recovery(trainData,originData)
+    rt.affine(trainData,anglerange=10,scalerange=0.1,shearrange=10)
+    rt.changeColor(trainData)
+
+
+# DataLoder Function
+# ----define hog loader-----
+if showExample:
+    def hog_loader(image):
+
+        image = transforms.functional.convert_image_dtype(image)
+        image = preprocess(image)
+        # image = fpreprocess(image,afanglerange=10,afshearrange=10,scalerange=0.1)
+        
+        hog_vec, hog_img = feature.hog(image.numpy().transpose(
+            (1, 2, 0)), visualize=True)
+        hogimg_tensor = torch.from_numpy(numpy.array([hog_img]))
+        return image, hogimg_tensor
+else:
+    def hog_loader(image):
+        image = transforms.functional.convert_image_dtype(image)
+        image = preprocess(image)
+        img_ski = feature.hog(image.numpy().transpose(
+            (1, 2, 0))).astype(numpy.float32)
+        hog_tensor = torch.from_numpy(img_ski)
+        return hog_tensor
 
 
 def uint8_loader(image):
@@ -83,69 +134,58 @@ testsetHog = ryulib.dataset.sscd.SSCDset(
 # Test Dataloader
 testloader = DataLoader(testsetHog, batch_size=128, shuffle=False)
 
-# ------- Transmit font image ----------
-# Define Color Change
-def changeColor():
-    for i in range(len(trainData)):
-        cb = torch.randint(256, [3])
-        cc = torch.randint(256, [3])
 
-        while(abs(cc[0]-cb[0]) < 50 or abs(cc[1]-cb[1]) < 50 or abs(cc[2]-cb[2]) < 50):
-            cb = torch.randint(256, [3])
-            cc = torch.randint(256, [3])
-
-        orinp= originData[i].numpy().transpose(1, 2, 0)
-        back = (orinp == numpy.array([0, 0, 0])).all(axis=2)
-        imnp = trainData[i].numpy().transpose(1, 2, 0)
-
-        imnp[back] = cb
-        imnp[numpy.logical_not(back)] = cc
-    pass
-
-
-# Test Color Change
-showExample=False
+# Test Transform
 if showExample:
-    changeColor()
-    iter_data = iter(trainloaderImg)
-    images, labels = next(iter_data)
+    
+    fpreprocess(trainData,originData)
 
+    # Image
+    iter_data = iter(trainloader)
+    (images, hogimage), labels = next(iter_data)
     show_imgs = utils.make_grid(
         images, nrow=8).numpy().transpose((1, 2, 0))
+
+    plt.subplot(1, 2, 1)
     plt.imshow(show_imgs)
+
+    show_imgs = utils.make_grid(
+        hogimage, nrow=8).numpy().transpose((1, 2, 0))
+    plt.subplot(1, 2, 2)
+    plt.imshow(show_imgs)
+
+    # plt.savefig("sscdexample.png")
     plt.show()
     sys.exit(0)
 
 
 iter_data = iter(trainloader)
 images, labels = next(iter_data)
-print(images.size())
-
+print("Input tensor's shape", images.size())
 
 # Train
 net = ryulib.model.MLP(images.size()[1], 512, num_class).cuda()
 print(net)
 
 
+print("Use new transform function, affine: degree=10, shear=10, scale=0.1")
 # ------ We define the loss function and the optimizer -------
 loss_func = nn.CrossEntropyLoss()
 # optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 optimizer = optim.Adam(net.parameters(), lr=0.0001)
-epochs = 100
+epochs = 200
 
 ct_num = 0
 running_loss = 0.0
 
-savePath = '/home/eugene/workspace/ryuocr/py/trained/lastTrained.pt'
 
-pfile=open("result.txt",mode='a')
 while True:
     sumEpoch = 0
     for epoch in range(epochs):
 
-        # change color every epoch
-        # new dataset
-        changeColor()
+        # Transform every epoch
+        fpreprocess(trainData,originData)
+        
         sumEpoch += 1
 
         for iteration, data in enumerate(trainloader):
@@ -187,12 +227,12 @@ while True:
             #     str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
 
         print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-              str(running_loss/ct_num)+"  TrueLoss:"+str(loss.item()),file=pfile)
+              str(running_loss/ct_num)+"  TrueLoss:"+str(loss.item()))
 
         if sumEpoch % 5 == 0:
             acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
                 net, testloader, False)
-            print("Accuracy: "+"%.4f" % acc,file=pfile)
+            print("Accuracy: "+"%.4f" % acc)
 
     # Choice continue
     # print("Input 'q' to finish train, other to continue train.")
@@ -201,6 +241,8 @@ while True:
     break
 
 torch.save(net, savePath)
+print("------------------------------------------------------")
+
 
 # unicodeJPSC = ryulib.dataset.sscd.getCodeJPSC()
 # labelJPSC = []
