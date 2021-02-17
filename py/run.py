@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from socket import gethostname
 import torch
 import torch.nn as nn
@@ -26,23 +27,32 @@ nowTimeStr = time.strftime("%Y%m%d%H%M%S")
 myhostname = gethostname()
 
 # Set print goal
-outputScreen = False
-# outputScreen = True
+# outputScreen = False
+outputScreen = True
 
 
 # Set weather show trainset example
-showExample=False
-# showExample = True
+# showExample = False
+showExample = True
+showHogImage = False
+
 
 # Network model save path
 savePath = '/home/eugene/workspace/ryuocr/py/trained/'+myhostname+'lastTrained.pt'
-
+# Accuracy History Graph Save Path
+accGraphSavePath = "/home/eugene/workspace/ryuocr/py/output/output_" + \
+    myhostname+"_"+nowTimeStr+"_acc.png"
 
 if not outputScreen:
     outputfilename = "/home/eugene/workspace/ryuocr/py/output/output_" + \
         myhostname+"_"+nowTimeStr+".txt"
     pfile = open(outputfilename, mode='w')
     sys.stdout = pfile
+
+# ----------------- Training parameter ------------------------
+
+epochs = 200
+
 
 # ------------ Run ------------------
 
@@ -78,15 +88,21 @@ normalize = transforms.Normalize(
 )
 preprocess = transforms.Compose([
     # transforms.RandomPerspective(),
-    # transforms.RandomAffine(10, scale=(0.9,1.1),shear=(-10, 10, -10, 10)),
+    # transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
     normalize
 ])
 
 
 def fpreprocess(trainData, originData):
-    rt.recovery(trainData,originData)
-    rt.affine(trainData,anglerange=10,scalerange=0.1,shearrange=10)
+    rt.recovery(trainData, originData)
+    rt.affine(trainData, anglerange=10, scalerange=0.1, shearrange=10)
     rt.changeColor(trainData)
+    pass
+
+
+# print("Use new transform function, color change transform")
+print("Use new transform function, affine: degree=10, shear=10, scale=0.1")
+print("Use Gaussian Blur k=3, sigma 0.1 2,0")
 
 
 # DataLoder Function
@@ -96,8 +112,7 @@ if showExample:
 
         image = transforms.functional.convert_image_dtype(image)
         image = preprocess(image)
-        # image = fpreprocess(image,afanglerange=10,afshearrange=10,scalerange=0.1)
-        
+
         hog_vec, hog_img = feature.hog(image.numpy().transpose(
             (1, 2, 0)), visualize=True)
         hogimg_tensor = torch.from_numpy(numpy.array([hog_img]))
@@ -137,25 +152,34 @@ testloader = DataLoader(testsetHog, batch_size=128, shuffle=False)
 
 # Test Transform
 if showExample:
-    
-    fpreprocess(trainData,originData)
+
+    fpreprocess(trainData, originData)
 
     # Image
-    iter_data = iter(trainloader)
-    (images, hogimage), labels = next(iter_data)
-    show_imgs = utils.make_grid(
-        images, nrow=8).numpy().transpose((1, 2, 0))
+    if not showHogImage:
+        iter_data = iter(trainloader)
+        (images, hogimage), labels = next(iter_data)
+        show_imgs = utils.make_grid(
+            images, nrow=8).numpy().transpose((1, 2, 0))
 
-    plt.subplot(1, 2, 1)
-    plt.imshow(show_imgs)
+        plt.imshow(show_imgs)
+    # Example with hog
+    if showHogImage:
+        iter_data = iter(trainloader)
+        (images, hogimage), labels = next(iter_data)
 
-    show_imgs = utils.make_grid(
-        hogimage, nrow=8).numpy().transpose((1, 2, 0))
-    plt.subplot(1, 2, 2)
-    plt.imshow(show_imgs)
+        show_imgs = utils.make_grid(
+            images, nrow=8).numpy().transpose((1, 2, 0))
+        plt.subplot(1, 2, 1)
+        plt.imshow(show_imgs)
 
-    # plt.savefig("sscdexample.png")
-    plt.show()
+        show_imgs = utils.make_grid(
+            hogimage, nrow=8).numpy().transpose((1, 2, 0))
+        plt.subplot(1, 2, 2)
+        plt.imshow(show_imgs)
+
+    # plt.show()
+    plt.savefig("sscdexample.png")
     sys.exit(0)
 
 
@@ -163,29 +187,30 @@ iter_data = iter(trainloader)
 images, labels = next(iter_data)
 print("Input tensor's shape", images.size())
 
-# Train
-net = ryulib.model.MLP(images.size()[1], 512, num_class).cuda()
-print(net)
-
-
-print("Use new transform function, affine: degree=10, shear=10, scale=0.1")
-# ------ We define the loss function and the optimizer -------
-loss_func = nn.CrossEntropyLoss()
-# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-optimizer = optim.Adam(net.parameters(), lr=0.0001)
-epochs = 200
 
 ct_num = 0
 running_loss = 0.0
 
 
+#  Define ensemble system
+net = ryulib.model.MLP(images.size()[1], 512, num_class).cuda()
+print(net)
+loss_func = nn.CrossEntropyLoss()
+# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=0.0001)
+
+# Train
+print("Training Start...\n")
 while True:
     sumEpoch = 0
+    accuracy_history = []
+    meanloss_history = []
+
     for epoch in range(epochs):
 
         # Transform every epoch
-        fpreprocess(trainData,originData)
-        
+        fpreprocess(trainData, originData)
+
         sumEpoch += 1
 
         for iteration, data in enumerate(trainloader):
@@ -226,22 +251,36 @@ while True:
             # print("[Epoch: "+str(epoch+1)+"]"" --- Iteration: " +
             #     str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
 
+        meanloss = running_loss/ct_num
         print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-              str(running_loss/ct_num)+"  TrueLoss:"+str(loss.item()))
+              str(meanloss)+"  TrueLoss:"+str(loss.item()))
 
-        if sumEpoch % 5 == 0:
-            acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
-                net, testloader, False)
-            print("Accuracy: "+"%.4f" % acc)
+        # if sumEpoch % 5 == 0:
+        acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
+            net, testloader, False)
+        print("Accuracy: "+"%.4f" % acc)
+
+        #  Save loss and accuracy
+        accuracy_history.append(acc)
+        meanloss_history.append(meanloss)
 
     # Choice continue
     # print("Input 'q' to finish train, other to continue train.")
+
     # over = input()
     # if over == "q":
     break
 
 torch.save(net, savePath)
-print("------------------------------------------------------")
+print("--------------------Training Finish---------------------------")
+
+# Draw a graph
+
+plt.xlabel("Training Epoch")
+plt.ylabel("Accuracy")
+plt.grid()
+plt.plot(range(1, epochs+1), accuracy_history)
+plt.savefig(accGraphSavePath)
 
 
 # unicodeJPSC = ryulib.dataset.sscd.getCodeJPSC()

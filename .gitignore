@@ -12,8 +12,8 @@ FH*
 test*.*
 
 # other
-/graph
 *.png
+!*example.png
 
 # python files
 /__pycache__
