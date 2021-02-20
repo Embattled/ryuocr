@@ -27,18 +27,18 @@ nowTimeStr = time.strftime("%Y%m%d%H%M%S")
 myhostname = gethostname()
 
 # Set print goal
-# outputScreen = False
-outputScreen = True
+outputScreen = False
+# outputScreen = True
 
 
 # Set weather show trainset example
-# showExample = False
-showExample = True
+showExample = False
+# showExample = True
 showHogImage = False
 
 
 # Network model save path
-savePath = '/home/eugene/workspace/ryuocr/py/trained/'+myhostname+'lastTrained.pt'
+savePath = '/home/eugene/workspace/ryuocr/py/trained/'+myhostname+'_'+nowTimeStr+'.pt'
 # Accuracy History Graph Save Path
 accGraphSavePath = "/home/eugene/workspace/ryuocr/py/output/output_" + \
     myhostname+"_"+nowTimeStr+"_acc.png"
@@ -51,7 +51,7 @@ if not outputScreen:
 
 # ----------------- Training parameter ------------------------
 
-epochs = 200
+epochs = 400
 
 
 # ------------ Run ------------------
@@ -87,8 +87,10 @@ normalize = transforms.Normalize(
     std=[0.229, 0.224, 0.225]
 )
 preprocess = transforms.Compose([
-    # transforms.RandomPerspective(),
-    # transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
+    transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
+    normalize
+])
+test_preprocess = transforms.Compose([
     normalize
 ])
 
@@ -96,12 +98,15 @@ preprocess = transforms.Compose([
 def fpreprocess(trainData, originData):
     rt.recovery(trainData, originData)
     rt.affine(trainData, anglerange=10, scalerange=0.1, shearrange=10)
+    rt.perspective(trainData,distortion_scale=0.3,p=0.7)
     rt.changeColor(trainData)
     pass
 
 
 # print("Use new transform function, color change transform")
-print("Use new transform function, affine: degree=10, shear=10, scale=0.1")
+print("Use new transform function")
+print("affine: degree=10, shear=10, scale=0.1")
+print("perspective: scale=0.3, p=0.7")
 print("Use Gaussian Blur k=3, sigma 0.1 2,0")
 
 
@@ -127,25 +132,36 @@ else:
         return hog_tensor
 
 
-def uint8_loader(image):
+def test_hog_loader(image):
     image = transforms.functional.convert_image_dtype(image)
-    img_tensor = preprocess(image)
-    return img_tensor
+    image = test_preprocess(image)
+    img_ski = feature.hog(image.numpy().transpose(
+        (1, 2, 0))).astype(numpy.float32)
+    hog_tensor = torch.from_numpy(img_ski)
+    return hog_tensor
+
+# def uint8_loader(image):
+#     image = transforms.functional.convert_image_dtype(image)
+#     img_tensor = preprocess(image)
+#     return img_tensor
+
+
+
 
 
 # Train Dataset
 trainsetHog = ryulib.dataset.FontTrainSet(
     trainData, trainLabel, loader=hog_loader)
-trainsetImg = ryulib.dataset.FontTrainSet(
-    trainData, trainLabel, loader=uint8_loader)
+# trainsetImg = ryulib.dataset.FontTrainSet(
+#     trainData, trainLabel, loader=uint8_loader)
 
 # Train Dataloader
 trainloader = DataLoader(trainsetHog, batch_size=64, shuffle=True)
-trainloaderImg = DataLoader(trainsetImg, batch_size=64, shuffle=True)
+# trainloaderImg = DataLoader(trainsetImg, batch_size=64, shuffle=True)
 
 # Test Dataset
 testsetHog = ryulib.dataset.sscd.SSCDset(
-    jpsc1400Data, jpsc1400Label, loader=hog_loader)
+    jpsc1400Data, jpsc1400Label, loader=test_hog_loader)
 # Test Dataloader
 testloader = DataLoader(testsetHog, batch_size=128, shuffle=False)
 
@@ -264,22 +280,27 @@ while True:
         accuracy_history.append(acc)
         meanloss_history.append(meanloss)
 
-    # Choice continue
-    # print("Input 'q' to finish train, other to continue train.")
-
-    # over = input()
-    # if over == "q":
     break
 
 torch.save(net, savePath)
 print("--------------------Training Finish---------------------------")
 
+print(accuracy_history)
 # Draw a graph
 
 plt.xlabel("Training Epoch")
 plt.ylabel("Accuracy")
 plt.grid()
 plt.plot(range(1, epochs+1), accuracy_history)
+
+maxacc, maxaccepoch = torch.max(torch.tensor(accuracy_history), 0)
+maxaccepoch=maxaccepoch.item()+1
+
+coord = (maxaccepoch-150, maxacc.item())
+plt.grid()
+
+plt.annotate("Max accuracy: "+"%.4f" % maxacc.item() +
+             " epoch: "+str(maxaccepoch), coord, xytext=coord)
 plt.savefig(accGraphSavePath)
 
 

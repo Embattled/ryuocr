@@ -6,3 +6,4 @@ if(not(os.path.dirname(os.path.realpath(__file__)) in sys.path)):
 from utils import getFilesPath,kanji2unicode
 from fontdataset import FontTrainSet
 import sscd
+import loader
