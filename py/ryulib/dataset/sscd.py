@@ -13,10 +13,6 @@ class SSCDset(RyuImageset):
         labels      : List of all font images's unicode
         loader     : function read a path and return images tensor
         """
-        self.normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
 
         self.preprocess = transforms.Compose([
             transforms.ToTensor(),
@@ -33,14 +29,6 @@ class SSCDset(RyuImageset):
             super().__init__(imagePaths, labels, sscd_loader)
         else:
             super().__init__(imagePaths, labels, loader)
-
-
-def getCodeJPSC():
-    labelFile = "/home/eugene/workspace/dataset/JPSC1400-20201218/label.csv"
-    jpscLabels = list(pandas.read_csv(
-        labelFile, index_col=0)["utfcode"])
-    return jpscLabels
-
 
 class JPSC1400(SSCDset):
     def __init__(self, newLabel, size=64, loader=None):

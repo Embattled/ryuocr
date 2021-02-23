@@ -6,7 +6,7 @@ from PIL import Image, ImageChops
 
 class RyuImageset(Dataset):
     # Init
-    def __init__(self, images, labels, loader=None):
+    def __init__(self, images, labels, loader):
         """
         images      : List of all font images's path
         labels      : List of all font images's unicode
@@ -14,19 +14,7 @@ class RyuImageset(Dataset):
         """
         self.images = images
         self.labels = labels
-
-        self.preprocess = transforms.Compose([
-            transforms.ToTensor(),
-        ])
-
-        def default_loader(image):
-            img_pil = Image.open(image)
-            img_tensor = self.preprocess(img_pil)
-            return img_tensor
-        if loader==None:
-            self.loader = default_loader
-        else:
-            self.loader=loader
+        self.loader= loader
 
     def __getitem__(self, index):
         image = self.images[index]

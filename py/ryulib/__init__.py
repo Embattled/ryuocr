@@ -10,4 +10,5 @@ from . import model
 from . import train
 from . import evaluate
 from . import transform
+from . import example
 
