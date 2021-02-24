@@ -5,8 +5,7 @@ def showExample(dataloader,showScreen=True,outputpath=None):
     # Image
     iter_data = iter(dataloader)
     images, _ = next(iter_data)
-    print(images[0].size())
-    print(images[1].size())
+
     show_imgs = utils.make_grid(
         images, nrow=8).numpy().transpose((1, 2, 0))
 
@@ -31,7 +30,7 @@ def showHogExample(dataloader,showHogImage=False,showScreen=True,outputpath=None
         plt.imshow(show_imgs)
     
     # Example with hog
-    if showHogImage:
+    else:
         iter_data = iter(dataloader)
         (images, hogimage), _ = next(iter_data)
 

@@ -11,4 +11,5 @@ from . import train
 from . import evaluate
 from . import transform
 from . import example
+from . import sscd
 

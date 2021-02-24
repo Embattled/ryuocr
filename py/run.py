@@ -22,13 +22,14 @@ import ryulib
 from ryulib import transform as rt
 
 # ------------program global config -----------
+from inspect import getsource
 import time
 nowTimeStr = time.strftime("%Y%m%d%H%M%S")
 myhostname = gethostname()
 
 # Set print goal
-outputScreen = False
-# outputScreen = True
+# outputScreen = False
+outputScreen = True
 
 # Set weather show trainset example
 showExample = False
@@ -58,6 +59,8 @@ loss_func = nn.CrossEntropyLoss()
 
 
 ensemble_num = 15
+
+sscdepoch = 20
 
 # ------------ Run ------------------
 
@@ -106,17 +109,21 @@ def fpreprocess(trainData, originData):
     pass
 
 
-print("Total epochs: " + str(epochs))
-print("Train batch size: "+str(batch_size))
+print("Epochs:\t\t" + str(epochs))
+print("Batch size:\t"+str(batch_size))
+print("LearningRate:\t"+str(learning_rate))
 if ensemble_num!=1:
-    print("Ensembled system, number of models = "+str(ensemble_num))
+    print("Ensembled system, number of models =\t"+str(ensemble_num))
 
 
-print("Use new transform function")
-print("perspective: scale=0.3, p=0.7")
-print("affine: degree=10, shear=10, scale=0.1")
-print("Use Gaussian Blur k=3, sigma 0.1 2,0")
+print("\nTransform:")
+print(getsource(fpreprocess))
+print("Preprocess:")
+print(preprocess)
 
+sscd=ryulib.sscd.sscdCreate(originData,fpreprocess,)
+print(sscd.size())
+sys.exit(0)
 
 # DataLoder Function
 # ----define hog loader-----
@@ -194,16 +201,11 @@ if ensemble_num == 1:
             # Take the inputs and the labels for 1 batch.
             images, labels = data
 
-            # bch = images.size(0)
+            bch = images.size(0)
             # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
 
-            # inputs = []
-            # for i, image in enumerate(images):
-            #     inputs.append(feature.hog(
-            #         image.numpy().transpose(1, 2, 0), 8, (8, 8), (2, 2)))
-            # inputs = torch.from_numpy(numpy.array(inputs, dtype=numpy.float32))
-
             inputs = images
+
             # Move inputs and labels into GPU
             inputs = inputs.cuda()
             labels = labels.cuda()

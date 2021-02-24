@@ -1,29 +1,25 @@
 import torch.nn as nn
 from skimage import feature
 
-def train(net,epochs,optimizer,loss_func=nn.CrossEntropyLoss(),):
-    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+def train(net,trainloader,epochs,optimizer,loss_func):
 
-    epochs = 5000
+    meanloss_history = []
 
     ct_num = 0
     running_loss = 0.0
 
     for epoch in range(epochs):
+
+        sumEpoch += epoch
         for iteration, data in enumerate(trainloader):
             # Take the inputs and the labels for 1 batch.
             images, labels = data
 
-            # bch = images.size(0)
+            bch = images.size(0)
             # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
 
-            # inputs = []
-            # for i, image in enumerate(images):
-            #     inputs.append(feature.hog(
-            #         image.numpy().transpose(1, 2, 0), 8, (8, 8), (2, 2)))
-            # inputs = torch.from_numpy(numpy.array(inputs, dtype=numpy.float32))
-
             inputs = images
+
             # Move inputs and labels into GPU
             inputs = inputs.cuda()
             labels = labels.cuda()
@@ -48,6 +44,11 @@ def train(net,epochs,optimizer,loss_func=nn.CrossEntropyLoss(),):
             # print("[Epoch: "+str(epoch+1)+"]"" --- Iteration: " +
             #     str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
 
-        print("[Epoch:"+str(epoch+1)+"]---Loss:"+str(running_loss/ct_num))
-        if(epoch % 100 == 0):
-            evaluate_model()
+
+        meanloss = running_loss/ct_num
+        meanloss_history.append(meanloss)
+
+        print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
+              str(meanloss)+"  TrueLoss:"+str(loss.item()))
+
+
