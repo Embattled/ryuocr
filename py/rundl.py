@@ -21,6 +21,8 @@ import sys
 import ryulib
 from ryulib import transform as rt
 
+# This version use deep learning
+
 # ------------program global config -----------
 from inspect import getsource
 import time
@@ -34,8 +36,6 @@ outputScreen = False
 # Set weather show trainset example
 showExample = False
 # showExample = True
-showHogImage = False
-
 
 # Network model save path
 savePath = '/home/eugene/workspace/ryuocr/py/trained/' + \
@@ -57,7 +57,6 @@ learning_rate = 0.0001
 batch_size = 64
 loss_func = nn.CrossEntropyLoss()
 
-ensemble_num = 1
 
 sscdepoch = 50
 # ------------ Run ------------------
@@ -75,7 +74,6 @@ fontLabel = torch.load(
 fontData = torch.load(
     "/home/eugene/workspace/ryuocr/py/tensordata/7font3107img.pt")
 print("Loding font image success.")
-
 
 
 # JPSC1400 Datas
@@ -108,9 +106,6 @@ def fpreprocess(trainData, fontData):
 print("Epochs:\t\t" + str(epochs))
 print("Batch size:\t"+str(batch_size))
 print("LearningRate:\t"+str(learning_rate))
-if ensemble_num!=1:
-    print("Ensembled system, number of models =\t"+str(ensemble_num))
-
 
 print("\nTransform:")
 print(getsource(fpreprocess))
@@ -124,7 +119,8 @@ print(preprocess)
 # trainLabel = fontLabel.clone().detach()
 
 # 2. Create big sscd
-trainData,trainLabel=ryulib.sscd.sscdCreate(fontData,fontLabel,fpreprocess,sscdepoch)
+trainData, trainLabel = ryulib.sscd.sscdCreate(
+    fontData, fontLabel, fpreprocess, sscdepoch)
 print("Stacked sscd size:")
 print(trainData.size())
 print(trainLabel.size())
@@ -172,26 +168,25 @@ running_loss = 0.0
 
 # Train Single
 print("Training Start...\n")
-if ensemble_num == 1:
 
-    net = ryulib.model.MLP(images.size()[1], 512, num_cls).cuda()
-    print(net)
+net = ryulib.model.MLP(images.size()[1], 512, num_cls).cuda()
+print(net)
 
-    # optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    optimizer = optim.Adam(net.parameters(), lr=learning_rate)
+# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
-    sumEpoch = 0
-    accuracy_history = []
-    meanloss_history = []
+sumEpoch = 0
+accuracy_history = []
+meanloss_history = []
 
-    for epoch in range(epochs):
+ for epoch in range(epochs):
 
-        # Transform every epoch
-        # fpreprocess(trainData, fontData)
+      # Transform every epoch
+      # fpreprocess(trainData, fontData)
 
-        sumEpoch += 1
+      sumEpoch += 1
 
-        for iteration, data in enumerate(trainloader):
+       for iteration, data in enumerate(trainloader):
             # Take the inputs and the labels for 1 batch.
             images, labels = data
 
@@ -220,9 +215,9 @@ if ensemble_num == 1:
             running_loss += loss.item()
             ct_num += 1
 
-            if outputScreen and iteration%20==0:
+            if outputScreen and iteration % 20 == 0:
                 print("[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +
-                    str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
+                      str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
 
         meanloss = running_loss/ct_num
         print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
@@ -238,75 +233,6 @@ if ensemble_num == 1:
         meanloss_history.append(meanloss)
 
 
-#  Define ensemble system
-else:
-    net = []
-    accuracy_history = []
-    for netid in range(ensemble_num):
-        
-        print("Start training net "+str(netid+1)+"/"+str(ensemble_num))
-        net.append(ryulib.model.MLP(images.size()[1], 512, num_cls).cuda())
-        optimizer = optim.Adam(net[netid].parameters(), lr=learning_rate)
-
-        sumEpoch = 0
-
-        for epoch in range(epochs):
-
-            # Transform every epoch
-            # fpreprocess(trainData, fontData)
-
-            sumEpoch += 1
-
-            for iteration, data in enumerate(trainloader):
-                # Take the inputs and the labels for 1 batch.
-                images, labels = data
-
-                # bch = images.size(0)
-                # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
-
-                # inputs = []
-                # for i, image in enumerate(images):
-                #     inputs.append(feature.hog(
-                #         image.numpy().transpose(1, 2, 0), 8, (8, 8), (2, 2)))
-                # inputs = torch.from_numpy(numpy.array(inputs, dtype=numpy.float32))
-
-                inputs = images
-                # Move inputs and labels into GPU
-                inputs = inputs.cuda()
-                labels = labels.cuda()
-
-                # Remove old gradients for the optimizer.
-                optimizer.zero_grad()
-
-                # Compute result (Forward)
-                outputs = net[netid](inputs)
-
-                # Compute loss
-                loss = loss_func(outputs, labels)
-
-                loss.backward()
-                optimizer.step()
-
-                # with torch.no_grad():
-                running_loss += loss.item()
-                ct_num += 1
-
-            meanloss = running_loss/ct_num
-            print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-                  str(meanloss)+"  TrueLoss:"+str(loss.item()))
-
-            if sumEpoch % 10 == 0:
-                acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
-                    net[netid], testloader)
-                print("At epoch:"+str(sumEpoch)+" accuracy: "+"%.4f" % acc)
-
-
-        #  Save accuracy history
-        acc, true_label, pred_label=ryulib.evaluate.evaluate_ensemble(
-            net, testloader, num_cls)
-        accuracy_history.append(acc)
-        print("Number of models="+str(netid+1)+" accuracy: "+"%.4f" % acc)
-
 
 print("--------------------Training Finish---------------------------")
 torch.save(net, savePath)
@@ -321,10 +247,10 @@ plt.ylabel("Accuracy")
 
 plt.plot(range(1, epochs+1), accuracy_history)
 
-maxacc, maxaccepoch=torch.max(torch.tensor(accuracy_history), 0)
-maxaccepoch=maxaccepoch.item()+1
+maxacc, maxaccepoch = torch.max(torch.tensor(accuracy_history), 0)
+maxaccepoch = maxaccepoch.item()+1
 
-coord=(maxaccepoch-10, maxacc.item()+0.01)
+coord = (maxaccepoch-10, maxacc.item()+0.01)
 plt.grid()
 
 plt.annotate("%.3f" % maxacc.item() +
