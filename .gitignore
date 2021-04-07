@@ -3,10 +3,7 @@
 *.out
 ryuocr
 
-# horie files
-/FH*
-FH*
-
+# test
 /test
 *.csv
 test*.*

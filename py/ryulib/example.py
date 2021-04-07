@@ -50,3 +50,4 @@ def showHogExample(dataloader,showHogImage=False,showScreen=True,outputpath=None
         outputpath = "sscdexample.png" if outputpath==None else outputpath
         plt.savefig(outputpath)
 
+

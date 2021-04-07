@@ -13,18 +13,25 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
 
         # Fully connected layers
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, num_class)
+        # self.fc1 = nn.Linear(input_dim, hidden_dim)
+        # self.fc2 = nn.Linear(hidden_dim, num_class)
 
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
+        # self.relu = nn.ReLU()
+        # self.tanh = nn.Tanh()
+        # self.sigmoid = nn.Sigmoid()
+
+        self.feature=nn.Sequential(
+            nn.Linear(input_dim,hidden_dim),
+            nn.Tanh(),
+            # nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim,num_class),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
 
-        # flatten the tensor x -> 800
-        # b, l = x_input.size()
-        # b, c, h, w = x_input.size()
+        # x = self.relu(self.fc1(x))
+        # x = self.tanh(self.fc1(x))
+        # x = self.sigmoid(self.fc2(x))
 
-        x = self.relu(self.fc1(x))
-        x = self.sigmoid(self.fc2(x))
-        return x
+        return self.feature(x)

@@ -18,35 +18,42 @@ import numpy
 import pandas as pd
 
 import sys
+from inspect import getsource
+
 import ryulib
 from ryulib import transform as rt
 
+import ryuutils
+from ryuutils.ryutime import TimeMemo
 # ------------program global config -----------
-from inspect import getsource
-import time
-nowTimeStr = time.strftime("%Y%m%d%H%M%S")
+timeMemo=TimeMemo()
+nowTimeStr = timeMemo.nowTimeStr()
+print(nowTimeStr)
+
 myhostname = gethostname()
 
 # Set print goal
-outputScreen = False
-# outputScreen = True
+# outputScreen = False
+outputScreen = True
 
 # Set weather show trainset example
-showExample = False
-# showExample = True
+# showExample = False
+showExample = True
+
+
 showHogImage = False
 
 
 # Network model save path
 savePath = '/home/eugene/workspace/ryuocr/py/trained/' + \
-    myhostname+'_'+nowTimeStr+'.pt'
+    nowTimeStr+'.pt'
 # Accuracy History Graph Save Path
 accGraphSavePath = "/home/eugene/workspace/ryuocr/py/output/output_" + \
-    myhostname+"_"+nowTimeStr+"_acc.png"
+    nowTimeStr+"_acc.png"
 
-if not outputScreen:
+if (not showExample) and (not outputScreen):
     outputfilename = "/home/eugene/workspace/ryuocr/py/output/output_" + \
-        myhostname+"_"+nowTimeStr+".txt"
+        nowTimeStr+".txt"
     pfile = open(outputfilename, mode='w')
     sys.stdout = pfile
 
@@ -54,12 +61,10 @@ if not outputScreen:
 
 epochs = 20
 learning_rate = 0.0001
-batch_size = 64
+batch_size = 128
 loss_func = nn.CrossEntropyLoss()
 
-ensemble_num = 1
 
-sscdepoch = 50
 # ------------ Run ------------------
 
 # Label Dict
@@ -70,12 +75,17 @@ num_cls = len(labelDict)
 
 
 # Train Datas
-fontLabel = torch.load(
-    "/home/eugene/workspace/ryuocr/py/tensordata/7font3107label.pt")
-fontData = torch.load(
-    "/home/eugene/workspace/ryuocr/py/tensordata/7font3107img.pt")
-print("Loding font image success.")
+# fontLabel = torch.load(
+#     "/home/eugene/workspace/ryuocr/py/tensordata/7font3107label.pt")
+# fontData = torch.load(
+#     "/home/eugene/workspace/ryuocr/py/tensordata/7font3107img.pt")
 
+sscdDataFile="20_20210406184753_train.pt"
+sscdLabelFile="20_20210406184753_label.pt"
+
+trainData=torch.load('/home/eugene/workspace/ryuocr/py/tensorsscd/'+sscdDataFile)
+trainLabel=torch.load('/home/eugene/workspace/ryuocr/py/tensorsscd/'+sscdLabelFile)
+print("Loding SSCD data success.")
 
 
 # JPSC1400 Datas
@@ -97,35 +107,17 @@ preprocess = transforms.Compose([
 ])
 
 
-def fpreprocess(trainData, fontData):
-    rt.recovery(trainData, fontData)
-    rt.affine(trainData, anglerange=10, scalerange=0.1, shearrange=10)
-    rt.perspective(trainData, distortion_scale=0.3, p=0.7)
-    rt.changeColor(trainData)
-    pass
-
-
 print("Epochs:\t\t" + str(epochs))
 print("Batch size:\t"+str(batch_size))
 print("LearningRate:\t"+str(learning_rate))
-if ensemble_num!=1:
-    print("Ensembled system, number of models =\t"+str(ensemble_num))
 
 
-print("\nTransform:")
-print(getsource(fpreprocess))
 print("Preprocess:")
 print(preprocess)
 
 
-# Create traindata:
-# 1. Copy original data
-# trainData = fontData.clone().detach()
-# trainLabel = fontLabel.clone().detach()
-
-# 2. Create big sscd
-trainData,trainLabel=ryulib.sscd.sscdCreate(fontData,fontLabel,fpreprocess,sscdepoch)
-print("Stacked sscd size:")
+print("Training SSCD: " + sscdDataFile)
+print("Training SSCD size:")
 print(trainData.size())
 print(trainLabel.size())
 # sys.exit(0)
@@ -135,6 +127,7 @@ print(trainLabel.size())
 
 # Train Dataset
 if showExample:
+    batch_size=64
     trainsetHog = ryulib.dataset.RyuImageset(
         trainData, trainLabel, loader=ryulib.dataset.loader.tensor_hogvisual_loader)
 else:
@@ -155,7 +148,6 @@ testloader = DataLoader(testsetHog, batch_size=128, shuffle=False)
 
 # Test Transform
 if showExample:
-    fpreprocess(trainData, fontData)
     ryulib.example.showHogExample(
         trainloader, showScreen=outputScreen, showHogImage=showHogImage)
     sys.exit(0)
@@ -172,142 +164,74 @@ running_loss = 0.0
 
 # Train Single
 print("Training Start...\n")
-if ensemble_num == 1:
+starttime=time.time()
 
-    net = ryulib.model.MLP(images.size()[1], 512, num_cls).cuda()
-    print(net)
+net = ryulib.model.MLP(images.size()[1], 512, num_cls).cuda()
+print(net)
 
-    # optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    optimizer = optim.Adam(net.parameters(), lr=learning_rate)
+# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
-    sumEpoch = 0
-    accuracy_history = []
-    meanloss_history = []
+sumEpoch = 0
+accuracy_history = []
+meanloss_history = []
 
-    for epoch in range(epochs):
+for epoch in range(epochs):
 
-        # Transform every epoch
-        # fpreprocess(trainData, fontData)
+    # Transform every epoch
+    # fpreprocess(trainData, fontData)
 
-        sumEpoch += 1
+    sumEpoch += 1
 
-        for iteration, data in enumerate(trainloader):
-            # Take the inputs and the labels for 1 batch.
-            images, labels = data
+    for iteration, data in enumerate(trainloader):
+        # Take the inputs and the labels for 1 batch.
+        images, labels = data
 
-            bch = images.size(0)
-            # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
+        bch = images.size(0)
+        # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
 
-            inputs = images
+        inputs = images
 
-            # Move inputs and labels into GPU
-            inputs = inputs.cuda()
-            labels = labels.cuda()
+        # Move inputs and labels into GPU
+        inputs = inputs.cuda()
+        labels = labels.cuda()
 
-            # Remove old gradients for the optimizer.
-            optimizer.zero_grad()
+        # Remove old gradients for the optimizer.
+        optimizer.zero_grad()
 
-            # Compute result (Forward)
-            outputs = net(inputs)
+        # Compute result (Forward)
+        outputs = net(inputs)
 
-            # Compute loss
-            loss = loss_func(outputs, labels)
+        # Compute loss
+        loss = loss_func(outputs, labels)
 
-            loss.backward()
-            optimizer.step()
+        loss.backward()
+        optimizer.step()
 
-            # with torch.no_grad():
-            running_loss += loss.item()
-            ct_num += 1
+        # with torch.no_grad():
+        running_loss += loss.item()
+        ct_num += 1
 
-            if outputScreen and iteration%20==0:
-                print("[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +
-                    str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
+        if outputScreen and iteration%20==0:
+            print("[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +
+                str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
 
-        meanloss = running_loss/ct_num
-        print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-              str(meanloss))
+    meanloss = running_loss/ct_num
+    print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
+            str(meanloss))
 
-        # if sumEpoch % 5 == 0:
-        acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
-            net, testloader)
-        print("At epoch:"+str(sumEpoch)+" accuracy: "+"%.4f" % acc)
+    # if sumEpoch % 5 == 0:
+    acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
+        net, testloader)
+    print("At epoch:"+str(sumEpoch)+" accuracy: "+"%.4f" % acc)
 
-        #  Save loss and accuracy
-        accuracy_history.append(acc)
-        meanloss_history.append(meanloss)
-
-
-#  Define ensemble system
-else:
-    net = []
-    accuracy_history = []
-    for netid in range(ensemble_num):
-        
-        print("Start training net "+str(netid+1)+"/"+str(ensemble_num))
-        net.append(ryulib.model.MLP(images.size()[1], 512, num_cls).cuda())
-        optimizer = optim.Adam(net[netid].parameters(), lr=learning_rate)
-
-        sumEpoch = 0
-
-        for epoch in range(epochs):
-
-            # Transform every epoch
-            # fpreprocess(trainData, fontData)
-
-            sumEpoch += 1
-
-            for iteration, data in enumerate(trainloader):
-                # Take the inputs and the labels for 1 batch.
-                images, labels = data
-
-                # bch = images.size(0)
-                # inputs = inputs.view(bch, -1) <-- We don't need to reshape inputs here (we are using CNNs).
-
-                # inputs = []
-                # for i, image in enumerate(images):
-                #     inputs.append(feature.hog(
-                #         image.numpy().transpose(1, 2, 0), 8, (8, 8), (2, 2)))
-                # inputs = torch.from_numpy(numpy.array(inputs, dtype=numpy.float32))
-
-                inputs = images
-                # Move inputs and labels into GPU
-                inputs = inputs.cuda()
-                labels = labels.cuda()
-
-                # Remove old gradients for the optimizer.
-                optimizer.zero_grad()
-
-                # Compute result (Forward)
-                outputs = net[netid](inputs)
-
-                # Compute loss
-                loss = loss_func(outputs, labels)
-
-                loss.backward()
-                optimizer.step()
-
-                # with torch.no_grad():
-                running_loss += loss.item()
-                ct_num += 1
-
-            meanloss = running_loss/ct_num
-            print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-                  str(meanloss)+"  TrueLoss:"+str(loss.item()))
-
-            if sumEpoch % 10 == 0:
-                acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
-                    net[netid], testloader)
-                print("At epoch:"+str(sumEpoch)+" accuracy: "+"%.4f" % acc)
+    #  Save loss and accuracy
+    accuracy_history.append(acc)
+    meanloss_history.append(meanloss)
 
 
-        #  Save accuracy history
-        acc, true_label, pred_label=ryulib.evaluate.evaluate_ensemble(
-            net, testloader, num_cls)
-        accuracy_history.append(acc)
-        print("Number of models="+str(netid+1)+" accuracy: "+"%.4f" % acc)
 
-
+finishtime=time.time()
 print("--------------------Training Finish---------------------------")
 torch.save(net, savePath)
 print("Pure Data accuracy history:")
