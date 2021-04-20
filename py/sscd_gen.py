@@ -21,13 +21,21 @@ import ryulib
 from ryulib import transform as rt
 
 from inspect import getsource
-import time
-nowTimeStr = time.strftime("%Y%m%d%H%M%S")
 
+import ryuutils
+from ryuutils.ryutime import TimeMemo
+from ryuutils import ryuyaml as yaml
 
+timeMemo=TimeMemo()
+nowTimeStr = timeMemo.nowTimeStr()
+print(nowTimeStr)
 # -------------
+
+sscd_profile=dict()
+
 # Size of sscd
-sscdepoch = 20
+sscdepoch=1
+sscd_profile["sscdepoch"] = sscdepoch
 
 # Set weather show trainset example
 showExample = False
@@ -41,16 +49,11 @@ else:
         '_'+nowTimeStr+"_"
     # Save log to txt files
     outputfilename = "/home/eugene/workspace/ryuocr/py/tensorsscd/" +str(sscdepoch)+ \
-        "_"+nowTimeStr+".txt"
-    pfile = open(outputfilename, mode='w')
-    sys.stdout = pfile
-
-
+        "_"+nowTimeStr+".yml"
 
 
 # --------------
 print("SSCD Epochs: " + str(sscdepoch))
-
 
 # Origin Font Data
 fontLabel = torch.load(
@@ -70,18 +73,16 @@ def fpreprocess(trainData, fontData):
 # rt.uniform_perspective(trainData, distortion_scale=0.3, p=0.7)
 
 
-print("\nTransform:")
-print(getsource(fpreprocess))
 
 trainData, trainLabel = ryulib.sscd.sscdCreate(
     fontData, fontLabel, fpreprocess, sscdepoch)
 
-print("Stacked sscd size:")
-print(trainData.size())
+sscd_profile["totalSize"]=trainData.size()
+sscd_profile["Transform:"]=getsource(fpreprocess)
 
 if showExample:
-    trainsetHog = ryulib.dataset.RyuImageset(
-        trainData, trainLabel, loader=ryulib.dataset.loader.tensor_hogvisual_loader)
+    trainsetHog = ryutorch.dataset.RyuImageset(
+        trainData, trainLabel, loader=ryutorch.dataset.loader.tensor_hogvisual_loader)
     trainloader = DataLoader(trainsetHog, batch_size=64, shuffle=False)
     ryulib.example.showHogExample(
         trainloader, showScreen=True, showHogImage=False)
@@ -89,4 +90,5 @@ if showExample:
 else:
     torch.save(trainData, savePath+"train.pt")
     torch.save(trainLabel, savePath+"label.pt")
-    print("Save Success")
+    sscd_profile["createResult"]=True
+    yaml.saveyaml({"sscd":sscd_profile},outputfilename)

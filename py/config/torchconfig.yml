@@ -1,0 +1,37 @@
+Global:
+  use_gpu: True
+  epoch: 2
+  print_batch_step: 10
+  save_model_dir: /home/eugene/workspace/ryuocr/py/trained/
+  save_result_dir: /home/eugene/workspace/ryuocr/py/output/
+
+  # evaluation is run every 5000 iterations after the 4000th iteration
+  eval_batch_step: [0, 2000]
+
+Optimizer:
+  learning_rate: 0.0001
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+
+  regularizer:
+    name: 'L2'
+    factor: 0.00001
+
+Train:
+  dataset:
+    name: "20_20210406184753"
+    data_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
+    label_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
+  loader:
+    shuffle: True
+    batch_size: 256
+
+Test:
+  dataset:
+    name: JPSC1400
+    data_dir: /home/eugene/workspace/ryuocr/py/tensordata/jpsc1400tensor64.pt
+    label_dir: /home/eugene/workspace/ryuocr/py/tensordata/jpsc1400label3107.pt
+  loader:
+    shuffle: False
+    batch_size: 256

@@ -13,7 +13,7 @@ class TimeMemo:
     def start(self):
         self.t=time.time()
 
-    def getRangeStr(self):
+    def getTimeCostStr(self)->str:
         e=time.time()
         second=(int)(e-self.t)
 
@@ -25,7 +25,7 @@ class TimeMemo:
         s=(str(hour)+" h " if hour>0 else '') + (str(minute)+" m " if minute>0 else '') + str(second)+" s"
         return s
 
-    def getRange(self):
+    def getTimeCost(self):
         e=time.time()
         second=(int)(e-self.t)
 
