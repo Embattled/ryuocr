@@ -2,69 +2,80 @@ from PIL import Image, ImageFont, ImageDraw, ImageChops, ImageMorph
 import pathlib
 import os
 
-def ttfimageshow(fontpath, label, size=64,padding=0):
+
+def ttfimageget(fontpath, word, size=64, padding=2, background=0, fill=255):
     """ 
-    Show a font character image.
-    """
-    fontpoint = size-padding*2
-    font = ImageFont.truetype(fontpath, fontpoint)
-
-    # image
-    image = Image.new('RGB', (fontpoint, fontpoint))
-    draw = ImageDraw.Draw(image)
-
-    draw.text((0, 0), label, font=font, anchor="lt")
-    image.show()
-
-
-def ttfimageget(fontpath, labels, size=64, padding=0):
-    """ 
+    Given ttf file path and character.
     Return a font character image.
     """
     fontpoint = size-padding*2
     font = ImageFont.truetype(fontpath, fontpoint)
 
     # image
-    image = Image.new('RGB', (size, size))
+    image = Image.new('L', size=(size, size), color=background)
     draw = ImageDraw.Draw(image)
+
+    xy = (size/2, size/2)
+    draw.text(xy, word, font=font, anchor="mm", fill=fill)
+
+    return image
+
+
+def ttfimageshow(fontpath, word, size=64, padding=2, background=0, fill=255):
+    """ 
+    Given ttf file path and character.
+    Show a font character image.
+    """
+    image = ttfimageget(fontpath, word, size, padding, background, fill)
+    image.show(title=word)
+
+
+def fontimageget(font, word, size, background=0, fill=255):
+    """ 
+    Given font object and character.
+    Return a font character image.
+    """
+    # image
+    image = Image.new('L', size=(size, size), color=background)
+    draw = ImageDraw.Draw(image)
+
+    xy = (size/2, size/2)
+    draw.text(xy, word, font=font, anchor="mm", fill=fill)
+
+    return image
+
+
+def fontimageshow(font, word, size, background=0, fill=255):
+    image = fontimageget(font, word, size, background, fill)
+    image.show(title=word)
+
+
+def ttfdictget(fontpath, dicts, size=64, padding=2, background=0, fill=255):
+    """ 
+    Return a font character image with given dict list.
+    """
+
+    fontpoint = size-padding*2
+    font = ImageFont.truetype(fontpath, fontpoint)
 
     images = []
     # read
-    for label in labels:
-        draw.text((padding, padding), label, font=font, anchor="lt")
-        images.append(image)
+    for word in dicts:
+        images.append(fontimageget(font, word, size, background, fill))
     return images
 
 
-
-def ttfwrite(fontpath, outputdir, labels, size=64, padding=0):
+def multi_ttfdictget(fonts, dicts, size=64, padding=2,background=0, fill=255):
     """ 
-    Write font images of unicode list to files
+    Return a font character image with given dict list and multiple ttf files.
     """
-    fontpoint = size-padding*2
+    images = []
+    labels = []
 
-    font = ImageFont.truetype(str(fontpath), fontpoint)
-    fontName = pathlib.Path(fontpath).stem
-    savePath=outputdir+"/"+fontName
-    if not os.path.exists(savePath):
-        os.mkdir(savePath)
+    for font in fonts:
+        images.extend(ttfdictget(font, dicts.keys(), size, padding, background, fill))
+        labels.extend(dicts.values())
 
-    xy=(size/2,size/2)
-
-    for label in labels:
-        code = chr(int(label,16))
-
-        image = Image.new('RGB', (size, size))
-        draw = ImageDraw.Draw(image)
-        draw.text(xy, code, font=font, anchor="mm")
-
-        fileName = savePath+"/"+str(label)+".png"
-        image.save(fileName)
-        print("Save font image :"+fileName)
+    return images, labels
 
 
-# Run code
-if __name__ == "__main__":
-    ttfpath="/home/eugene/workspace/resource/font/7/AozoraMinchoRegular.ttf"
-
-    ttfimageshow(ttfpath,'龍',size=64,padding=1)

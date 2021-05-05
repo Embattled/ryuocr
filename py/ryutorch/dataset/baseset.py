@@ -21,3 +21,14 @@ class RyuImageset(Dataset):
 
     def __len__(self):
         return len(self.images)
+
+    def changeData(self,images,labels=None):
+        if labels==None:
+            if len(images)!=len(self.images):
+                raise ValueError("Length of new data is different with old data.")
+            self.images=images
+        else:
+            if len(images)!=len(self.images):
+                raise ValueError("Length of new data is different with new label.")
+            self.images = images
+            self.labels = labels

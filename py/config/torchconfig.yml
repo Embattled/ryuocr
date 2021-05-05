@@ -1,7 +1,7 @@
 Global:
   use_gpu: True
-  epoch: 2
-  print_batch_step: 10
+  epoch: 400
+  print_iter_step: 20
   save_model_dir: /home/eugene/workspace/ryuocr/py/trained/
   save_result_dir: /home/eugene/workspace/ryuocr/py/output/
 
@@ -18,11 +18,30 @@ Optimizer:
     name: 'L2'
     factor: 0.00001
 
+Architecture:
+  network:
+    name: MLP
+    hidden_layer: 512 
+  
 Train:
   dataset:
-    name: "20_20210406184753"
-    data_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
-    label_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
+    # name: "20_20210406184753"
+    # data_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
+    # label_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
+    ttfpath :
+      - "/home/eugene/workspace/resource/font/7/AozoraMinchoRegular.ttf"
+      - "/home/eugene/workspace/resource/font/7/GenShinGothic-Regular.ttf"
+      - "/home/eugene/workspace/resource/font/7/logotypejp_corpmin.ttf"
+      - "/home/eugene/workspace/resource/font/7/mgenplus-1c-regular.ttf"
+      - "/home/eugene/workspace/resource/font/7/mplus-1c-regular.ttf"
+      - "/home/eugene/workspace/resource/font/7/VL-Gothic-Regular.ttf"
+      - "/home/eugene/workspace/resource/font/7/yasashisa_gothic.ttf"
+    dict : "/home/eugene/workspace/dataset/font/dict3107jp.txt"
+    fontsize: 64
+    sscdsize: 20
+    transform:
+
+
   loader:
     shuffle: True
     batch_size: 256
@@ -30,8 +49,7 @@ Train:
 Test:
   dataset:
     name: JPSC1400
-    data_dir: /home/eugene/workspace/ryuocr/py/tensordata/jpsc1400tensor64.pt
-    label_dir: /home/eugene/workspace/ryuocr/py/tensordata/jpsc1400label3107.pt
+    dir: /home/eugene/workspace/dataset/scenetext/JPSC1400-20201218/rec_gt_test.txt
   loader:
     shuffle: False
     batch_size: 256

@@ -22,9 +22,14 @@ from inspect import getsource
 
 
 import ryuutils
-from ryuutils.ryutime import TimeMemo
 from ryuutils import ryuyaml as yaml
+from ryuutils import sscd 
+from ryuutils import ryutime
+from ryuutils import example 
+from ryuutils import ryudataset
 
+import ryutorch
+import ryutorch.transform as rtt
 import ryutorch
 from ryutorch import model,evaluate
 import ryutorch.dataset
@@ -32,38 +37,35 @@ from ryutorch.dataset.baseset import RyuImageset
 from ryutorch.dataset.loader import RyuLoader
 
 # ------------program global mode -----------
-timeMemo = TimeMemo()
+timeMemo = ryutime.TimeMemo()
 nowTimeStr = timeMemo.nowTimeStr()
-print(nowTimeStr)
-
-myhostname = gethostname()
 
 # Set print goal
 # outputScreen = False
 outputScreen = True
 
-
 # ----------- training parameter ---------
 configPath = "/home/eugene/workspace/ryuocr/py/config/torchconfig.yml"
 
 config = yaml.loadyaml(configPath)
-# ---------- global parameter -----
 
+# ---------- global parameter -----
 paramGlobal = config["Global"]
+
 # Network model save path
-savePath = paramGlobal["save_model_dir"] + nowTimeStr+'.pt'
+saveModelPath = paramGlobal["save_model_dir"] + nowTimeStr+'.pt'
 # Accuracy History Graph Save Path
 accGraphSavePath = paramGlobal["save_result_dir"] + nowTimeStr+"_acc.png"
-logpath = paramGlobal["save_result_dir"] + nowTimeStr+".yml"
+logPath = paramGlobal["save_result_dir"] + nowTimeStr+".yml"
 
 
 if not outputScreen:
-    outputfilename = paramGlobal["save_result_dir"] + nowTimeStr+".txt"
+    outputfilename = paramGlobal["save_result_dir"] + nowTimeStr+"_log.txt"
     pfile = open(outputfilename, mode='w')
     sys.stdout = pfile
 
-
 epochs = paramGlobal["epoch"]
+print_iter_step = paramGlobal["print_iter_step"]
 
 # ----------  Optimizer ----
 paramOpt = config["Optimizer"]
@@ -71,20 +73,33 @@ paramOpt = config["Optimizer"]
 learning_rate = paramOpt["learning_rate"]
 loss_func = nn.CrossEntropyLoss()
 
-
 # ------------ Dataset -------------
-# Train dataset
+
+# Train dataset parameter
 paramTrain = config["Train"]
 train_batch_size = paramTrain["loader"]["batch_size"]
 train_shuffle = paramTrain["loader"]["shuffle"]
 
-trainsetName = paramTrain["dataset"]["name"]
-trainsetPath = paramTrain["dataset"]["data_dir"]+trainsetName+"_train.pt"
-trainsetLabel = paramTrain["dataset"]["label_dir"]+trainsetName+"_label.pt"
+# Font data parameter
+ttfpath=paramTrain["dataset"]["ttfpath"]
+dictpath=paramTrain["dataset"]["dict"]
+fontsize=paramTrain["dataset"]["fontsize"]
 
-trainData = torch.load(trainsetPath)
-trainLabel = torch.load(trainsetLabel)
+# Read Font Data
+char_list,char_dict=sscd.dict.readDict(dictpath)
+num_cls=len(char_list)
+config["Train"]["dataset"]["dict_len"]=num_cls
 
+fontData,fontLabel=sscd.font.multi_ttfdictget(ttfpath,char_dict,size=fontsize)
+trainLabel = torch.tensor(fontLabel)
+
+# Create sscd
+timeMemo.reset()
+transData=sscd.transform.uniformPerspective(fontData,scale=0.5,p=0.7,inplace=False)
+transData=sscd.transform.randomColorizeSet(transData,inplace=True)
+# ryuutils.example.showExamplePIL(transData,8,4,shuffle=True)
+trainData=ryutorch.transform.pil2Tensor(transData)
+print("Create one set cost: "+timeMemo.getTimeCostStr())
 
 # Test dataset
 paramTest = config["Test"]
@@ -92,17 +107,10 @@ test_batch_size = paramTest["loader"]["batch_size"]
 test_shuffle = paramTest["loader"]["shuffle"]
 
 testsetName = paramTest["dataset"]["name"]
-testsetPath = paramTest["dataset"]["data_dir"]
-testsetLabel = paramTest["dataset"]["label_dir"]
+testsetPath = paramTest["dataset"]["dir"]
 
-jpsc1400Data = torch.load(testsetPath)
-jpsc1400Label = torch.load(testsetLabel)
-
-# Label Dict
-labelData = pd.read_csv(
-    "/home/eugene/workspace/dataset/font/3107jp.csv", index_col=0)
-labelDict = dict(zip(labelData['utfcode'].values, labelData.index.values))
-num_cls = len(labelDict)
+testData,testLabelStr=ryudataset.getDataset(testsetPath)
+testLabel=torch.tensor(ryuutils.sscd.dict.getNumberLabel(char_dict,testLabelStr))
 
 
 print("Loding data success.")
@@ -113,54 +121,65 @@ normalize = transforms.Normalize(
     mean=[0.485, 0.456, 0.406],
     std=[0.229, 0.224, 0.225]
 )
-preprocess = transforms.Compose([
+trainPreprocess = transforms.Compose([
     transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
     normalize
 ])
+testPreprocess=transforms.Compose([
+    transforms.Resize((fontsize,fontsize)),
+    normalize
+])
+TrainLoaders = RyuLoader(trainPreprocess)
+TestLoaders = RyuLoader(testPreprocess)
 
-MyLoaders = RyuLoader(preprocess)
+# ---------- Create Dataset and Loader
 
-print("Preprocess:")
-print(preprocess)
-
-
+# Hog Version
 trainsetHog = RyuImageset(
-    trainData, trainLabel, loader=MyLoaders.tensor_hog_loader)
+    trainData, trainLabel, loader=TrainLoaders.tensor_hog_loader)
 trainloader = DataLoader(
     trainsetHog, batch_size=train_batch_size, shuffle=train_shuffle)
 
 testsetHog = RyuImageset(
-    jpsc1400Data, jpsc1400Label, loader=MyLoaders.tensor_hog_loader)
+    testData, testLabel, loader=TestLoaders.file_hog_loader)
 testloader = DataLoader(
     testsetHog, batch_size=test_batch_size, shuffle=test_shuffle)
+# Deep feature version
+
 
 iter_data = iter(trainloader)
 images, labels = next(iter_data)
 hog_dim = images.size()[1]
 
+
 # ----  log--------------------
 log = dict()
+
 it_num = 0
 running_loss = 0.0
 
 print("Training Start...\n")
+
 log["hog_dim"] = hog_dim
-net = model.MLP(hog_dim, 512, num_cls).cuda()
+net = model.getNetwork(config["Architecture"]["network"],num_cls,hog_dim).cuda()
 print(net)
 optimizer = optim.Adam(net.parameters(), lr=learning_rate)
-
 
 sumEpoch = 0
 accuracy_history = dict()
 loss_history = []
 
 # ------------ Run ------------------
-timeMemo.start()
+timeMemo.reset()
 
 for epoch in range(epochs):
 
-    # Transform every epoch
     # fpreprocess(trainData, fontData)
+    transData=sscd.transform.uniformPerspective(fontData,scale=0.5,p=0.7,inplace=False)
+    transData=sscd.transform.randomColorizeSet(transData,inplace=True)
+    # ryuutils.example.showExamplePIL(transData,8,4,shuffle=True)
+    trainData=ryutorch.transform.pil2Tensor(transData)
+    trainsetHog.changeData(trainData)
 
     sumEpoch += 1
 
@@ -193,7 +212,7 @@ for epoch in range(epochs):
         running_loss += loss.item()
         it_num += 1
 
-        if iteration % 20 == 0:
+        if (iteration+1) % print_iter_step == 0:
             loss_str = "[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +\
                 str(iteration+1)+", Loss: "+str(running_loss/it_num)+'.'
             loss_history.append(loss_str)
@@ -208,28 +227,30 @@ for epoch in range(epochs):
 
 log["costTime"] = timeMemo.getTimeCostStr()
 print("--------------------Training Finish---------------------------")
-torch.save(net, savePath)
+print("--------------Cost Time :"+timeMemo.getTimeCostStr()+"---------------------------")
+torch.save(net, saveModelPath)
 log["accHis"] = accuracy_history
 log["lossHis"] = loss_history
 
-yaml.saveyaml(config, logpath)
-yaml.saveyaml({"Log":log}, logpath)
+yaml.saveyaml(config, logPath)
+yaml.saveyaml({"Log":log}, logPath)
 
 # Draw a graph
 
-plt.xlabel("Training Epoch")
-plt.ylabel("Accuracy")
+# plt.xlabel("Training Epoch")
+# plt.ylabel("Accuracy")
 
-plt.plot(range(1, epochs+1), accuracy_history)
-maxacc, maxaccepoch = torch.max(torch.tensor(accuracy_history), 0)
-maxaccepoch = maxaccepoch.item()+1
+# plt.plot(range(1, epochs+1), accuracy_history)
+# maxacc, maxaccepoch = torch.max(torch.tensor(accuracy_history), 0)
+# maxaccepoch = maxaccepoch.item()+1
 
-coord = (maxaccepoch-10, maxacc.item()+0.01)
-plt.grid()
+# coord = (maxaccepoch-10, maxacc.item()+0.01)
+# plt.grid()
 
-plt.annotate("%.3f" % maxacc.item() +
-             " : "+str(maxaccepoch), coord, xytext=coord)
-if outputScreen:
-    plt.show()
-else:
-    plt.savefig(accGraphSavePath)
+# plt.annotate("%.3f" % maxacc.item() +
+#              " : "+str(maxaccepoch), coord, xytext=coord)
+# if outputScreen:
+#     plt.show()
+# else:
+#     plt.savefig(accGraphSavePath)
+

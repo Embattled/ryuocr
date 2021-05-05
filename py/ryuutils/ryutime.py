@@ -10,7 +10,7 @@ class TimeMemo:
             return time.strftime(fm)
         return time.strftime("%Y-%m-%d-%H-%M-%S")
 
-    def start(self):
+    def reset(self):
         self.t=time.time()
 
     def getTimeCostStr(self)->str:

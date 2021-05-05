@@ -18,167 +18,177 @@ import numpy
 import pandas as pd
 
 import sys
-import ryulib
-from ryulib import transform as rt
-
-# ------------program global config -----------
 from inspect import getsource
-import time
-nowTimeStr = time.strftime("%Y%m%d%H%M%S")
-myhostname = gethostname()
+
+
+import ryuutils
+from ryuutils import ryuyaml as yaml
+from ryuutils import sscd 
+from ryuutils import ryutime
+from ryuutils import example 
+from ryuutils import ryudataset
+
+import ryutorch
+import ryutorch.transform as rtt
+from ryutorch import model,evaluate
+from ryutorch import example as torchex
+
+import ryutorch.dataset
+from ryutorch.dataset.baseset import RyuImageset
+from ryutorch.dataset.loader import RyuLoader
+
+# ------------program global mode -----------
+timeMemo = ryutime.TimeMemo()
+nowTimeStr = timeMemo.nowTimeStr()
 
 # Set print goal
-outputScreen = False
-# outputScreen = True
+# outputScreen = False
+outputScreen = True
 
-# Set weather show trainset example
-showExample = False
-# showExample = True
-showHogImage = False
+# ----------- training parameter ---------
+configPath = "/home/eugene/workspace/ryuocr/py/config/torchconfig.yml"
 
+config = yaml.loadyaml(configPath)
+
+# ---------- global parameter -----
+paramGlobal = config["Global"]
 
 # Network model save path
-savePath = '/home/eugene/workspace/ryuocr/py/trained/' + \
-    nowTimeStr+'.pt'
+saveModelPath = paramGlobal["save_model_dir"] + nowTimeStr+'.pt'
 # Accuracy History Graph Save Path
-accGraphSavePath = "/home/eugene/workspace/ryuocr/py/output/output_" + \
-    nowTimeStr+"_acc.png"
+accGraphSavePath = paramGlobal["save_result_dir"] + nowTimeStr+"_acc.png"
+logPath = paramGlobal["save_result_dir"] + nowTimeStr+".yml"
 
-if (not showExample) and (not outputScreen):
-    outputfilename = "/home/eugene/workspace/ryuocr/py/output/output_" + \
-        nowTimeStr+".txt"
+
+if not outputScreen:
+    outputfilename = paramGlobal["save_result_dir"] + nowTimeStr+"_log.txt"
     pfile = open(outputfilename, mode='w')
     sys.stdout = pfile
 
-# ----------------- Training parameter ------------------------
+epochs = paramGlobal["epoch"]
+print_iter_step = paramGlobal["print_iter_step"]
 
-epochs = 20
-learning_rate = 0.0001
-batch_size = 128
+# ----------  Optimizer ----
+paramOpt = config["Optimizer"]
+
+learning_rate = paramOpt["learning_rate"]
 loss_func = nn.CrossEntropyLoss()
 
+# ------------ Dataset -------------
 
-# ------------ Run ------------------
+# Train dataset parameter
+paramTrain = config["Train"]
+train_batch_size = paramTrain["loader"]["batch_size"]
+train_shuffle = paramTrain["loader"]["shuffle"]
 
-# Label Dict
-labelData = pd.read_csv(
-    "/home/eugene/workspace/dataset/font/3107jp.csv", index_col=0)
-labelDict = dict(zip(labelData['utfcode'].values, labelData.index.values))
-num_cls = len(labelDict)
+# Font data parameter
+ttfpath=paramTrain["dataset"]["ttfpath"]
+dictpath=paramTrain["dataset"]["dict"]
+fontsize=paramTrain["dataset"]["fontsize"]
+
+# Read Font Data
+char_list,char_dict=sscd.dict.readDict(dictpath)
+num_cls=len(char_list)
+config["Train"]["dataset"]["dict_len"]=num_cls
+
+fontData,fontLabel=sscd.font.multi_ttfdictget(ttfpath,char_dict,size=fontsize)
+
+# Create sscd
+timeMemo.reset()
+
+def transformFunction(originData):
+    transData=sscd.transform.uniformPerspective(originData,scale=0.5,p=0.7,inplace=False)
+    transData=sscd.transform.randomColorizeSet(transData,inplace=True)
+    return transData
+# ryuutils.example.showExamplePIL(transData,8,4,shuffle=True)
+print(getsource(transformFunction))
+# sscdData,sscdLabel=sscd.transform.sscdCreate(fontData,fontLabel,transformFunction,epoch=20)
+sscdData=transformFunction(fontData)
+trainData=ryutorch.transform.pil2Tensor(sscdData)
+trainLabel = torch.tensor(fontLabel)
+# trainLabel = torch.tensor(sscdLabel)
+print("Create sscd cost: "+timeMemo.getTimeCostStr())
+print(trainData.size())
+print(trainLabel.size())
+
+# Test dataset
+paramTest = config["Test"]
+test_batch_size = paramTest["loader"]["batch_size"]
+test_shuffle = paramTest["loader"]["shuffle"]
+
+testsetName = paramTest["dataset"]["name"]
+testsetPath = paramTest["dataset"]["dir"]
+
+testData,testLabelStr=ryudataset.getDataset(testsetPath)
+testLabel=torch.tensor(ryuutils.sscd.dict.getNumberLabel(char_dict,testLabelStr))
 
 
-# Train Datas
-# fontLabel = torch.load(
-#     "/home/eugene/workspace/ryuocr/py/tensordata/7font3107label.pt")
-# fontData = torch.load(
-#     "/home/eugene/workspace/ryuocr/py/tensordata/7font3107img.pt")
-
-sscdDataFile="20_20210329165915_train.pt"
-sscdLabelFile="20_20210329165915_label.pt"
-
-trainData=torch.load('/home/eugene/workspace/ryuocr/py/tensorsscd/'+sscdDataFile)
-trainLabel=torch.load('/home/eugene/workspace/ryuocr/py/tensorsscd/'+sscdLabelFile)
-print("Loding SSCD data success.")
-
-
-# JPSC1400 Datas
-jpsc1400Data = torch.load(
-    "/home/eugene/workspace/ryuocr/py/tensordata/jpsc1400tensor64.pt")
-jpsc1400Label = torch.load(
-    "/home/eugene/workspace/ryuocr/py/tensordata/jpsc1400label3107.pt")
-print("Loding jpsc1400 image success.")
-
+print("Loding data success.")
+# ------------- Preprocess and Dataloader
 
 # Define Transforms
 normalize = transforms.Normalize(
     mean=[0.485, 0.456, 0.406],
     std=[0.229, 0.224, 0.225]
 )
-preprocess = transforms.Compose([
-    transforms.Resize((224,224)),
+trainPreprocess = transforms.Compose([
     transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
     normalize
 ])
+testPreprocess=transforms.Compose([
+    transforms.Resize((fontsize,fontsize)),
+    normalize
+])
+TrainLoaders = RyuLoader(trainPreprocess)
+TestLoaders = RyuLoader(testPreprocess)
 
+# ---------- Create Dataset and Loader
 
-print("Epochs:\t\t" + str(epochs))
-print("Batch size:\t"+str(batch_size))
-print("LearningRate:\t"+str(learning_rate))
+# Hog Version
+trainset = RyuImageset(
+    trainData, trainLabel, loader=TrainLoaders.tensor_loader)
+trainloader = DataLoader(
+    trainset, batch_size=train_batch_size, shuffle=train_shuffle)
 
-
-print("Preprocess:")
-print(preprocess)
-
-
-print("Training SSCD: " + sscdDataFile)
-print("Training SSCD size:")
-print(trainData.size())
-print(trainLabel.size())
-# sys.exit(0)
-
-# DataLoder Function
-# ----define tensor loader-----
-def tensor_loader(image):
-    image=transforms.functional.convert_image_dtype(image)
-    img_tensor = preprocess(image)
-    return img_tensor
-
-
-# Train Dataset
-if showExample:
-    batch_size=64
-    trainsetHog = ryulib.dataset.RyuImageset(
-        trainData, trainLabel, loader=ryulib.dataset.loader.tensor_hogvisual_loader)
-else:
-    trainsetHog = ryulib.dataset.RyuImageset(
-        trainData, trainLabel, loader=tensor_loader)
-
-
-# Train Dataloader
-trainloader = DataLoader(trainsetHog, batch_size=batch_size, shuffle=True)
-
-# Test Dataset
-testsetHog = ryulib.dataset.RyuImageset(
-    jpsc1400Data, jpsc1400Label, loader=tensor_loader)
-
-# Test Dataloader
-testloader = DataLoader(testsetHog, batch_size=128, shuffle=False)
-
-
-# Test Transform
-if showExample:
-    ryulib.example.showHogExample(
-        trainloader, showScreen=outputScreen, showHogImage=showHogImage)
-    sys.exit(0)
+testset = RyuImageset(
+    testData, testLabel, loader=TestLoaders.file_loader)
+testloader = DataLoader(
+    testset, batch_size=test_batch_size, shuffle=test_shuffle)
+# Deep feature version
 
 
 iter_data = iter(trainloader)
 images, labels = next(iter_data)
-print("Input tensor's shape", images.size())
+hog_dim = images.size()[1]
 
 
-ct_num = 0
+# ----  log--------------------
+log = dict()
+
+it_num = 0
 running_loss = 0.0
 
-
-# Train Single
 print("Training Start...\n")
 
+log["hog_dim"] = hog_dim
+# net = model.getNetwork(config["Architecture"]["network"],num_cls).cuda()
 net = models.AlexNet(num_cls).cuda()
 print(net)
-
-# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 
 sumEpoch = 0
-accuracy_history = []
-meanloss_history = []
+accuracy_history = dict()
+loss_history = []
+
+# ------------ Run ------------------
+timeMemo.reset()
 
 for epoch in range(epochs):
 
-    # Transform every epoch
-    # fpreprocess(trainData, fontData)
-
+    transData=transformFunction(fontData)
+    # ryuutils.example.showExamplePIL(transData,8,4,shuffle=True)
+    trainData=ryutorch.transform.pil2Tensor(transData)
+    trainset.changeData(trainData)
     sumEpoch += 1
 
     for iteration, data in enumerate(trainloader):
@@ -208,57 +218,47 @@ for epoch in range(epochs):
 
         # with torch.no_grad():
         running_loss += loss.item()
-        ct_num += 1
+        it_num += 1
 
-        if outputScreen and iteration%20==0:
-            print("[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +
-                str(iteration+1)+", Loss: "+str(running_loss/ct_num)+'.')
+        if (iteration+1) % print_iter_step == 0:
+            loss_str = "[Epoch: "+str(sumEpoch)+"]"" --- Iteration: " +\
+                str(iteration+1)+", Loss: "+str(running_loss/it_num)+'.'
+            loss_history.append(loss_str)
+            if outputScreen:
+                print(loss_str)
 
-    meanloss = running_loss/ct_num
-    print("[Epoch:"+str(sumEpoch)+"]--MeanLoss:" +
-            str(meanloss))
-
-    # if sumEpoch % 5 == 0:
-    acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
+    acc, true_label, pred_label = evaluate.evaluate_model(
         net, testloader)
     print("At epoch:"+str(sumEpoch)+" accuracy: "+"%.4f" % acc)
+    #  Save accuracy
+    accuracy_history[sumEpoch]=acc
 
-    #  Save loss and accuracy
-    accuracy_history.append(acc)
-    meanloss_history.append(meanloss)
-
-
-
-
+log["costTime"] = timeMemo.getTimeCostStr()
 print("--------------------Training Finish---------------------------")
-torch.save(net, savePath)
-print("Pure Data accuracy history:")
-print(accuracy_history)
-print("Pure Data mean loss history:")
-print(meanloss_history)
+print("--------------Cost Time :"+timeMemo.getTimeCostStr()+"---------------------------")
+torch.save(net, saveModelPath)
+log["accHis"] = accuracy_history
+log["lossHis"] = loss_history
+
+yaml.saveyaml(config, logPath)
+yaml.saveyaml({"Log":log}, logPath)
+
 # Draw a graph
 
-plt.xlabel("Training Epoch")
-plt.ylabel("Accuracy")
+# plt.xlabel("Training Epoch")
+# plt.ylabel("Accuracy")
 
-plt.plot(range(1, epochs+1), accuracy_history)
+# plt.plot(range(1, epochs+1), accuracy_history)
+# maxacc, maxaccepoch = torch.max(torch.tensor(accuracy_history), 0)
+# maxaccepoch = maxaccepoch.item()+1
 
-maxacc, maxaccepoch=torch.max(torch.tensor(accuracy_history), 0)
-maxaccepoch=maxaccepoch.item()+1
+# coord = (maxaccepoch-10, maxacc.item()+0.01)
+# plt.grid()
 
-coord=(maxaccepoch-10, maxacc.item()+0.01)
-plt.grid()
+# plt.annotate("%.3f" % maxacc.item() +
+#              " : "+str(maxaccepoch), coord, xytext=coord)
+# if outputScreen:
+#     plt.show()
+# else:
+#     plt.savefig(accGraphSavePath)
 
-plt.annotate("%.3f" % maxacc.item() +
-             " : "+str(maxaccepoch), coord, xytext=coord)
-if outputScreen:
-    plt.show()
-else:
-    plt.savefig(accGraphSavePath)
-
-# JPSC1400 = ryulib.dataset.sscd.JPSC1400(labelJPSC, loader=hog_loader)
-# testloader = DataLoader(JPSC1400, batch_size=128, shuffle=False)
-
-# acc, true_label, pred_label = ryulib.evaluate.evaluate_model(
-#     net, testloader, False)
-# print("Accuracy: "+"%.3f" % acc)
