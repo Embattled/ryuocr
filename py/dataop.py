@@ -9,10 +9,6 @@ import pathlib
 
 import ryulib
 
-
-
-
-
 sys.exit(0)
 # --------------------------------------------------------------------------
 # create JPSC1400 tensor data
