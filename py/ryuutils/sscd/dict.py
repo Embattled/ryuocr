@@ -13,10 +13,7 @@ def readDict(path):
     return list_data,label_dict
 
 def getNumberLabel(label_dict,label_str):
-    label=[]
-    for i in range(len(label_str)):
-        label.append(label_dict[label_str[i]])
-    return label
+    return [label_dict[i] for i in label_str]
 
 if __name__ == '__main__':
     a=readDict("/home/eugene/workspace/dataset/font/dict3107jp.txt")

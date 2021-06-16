@@ -1,11 +1,12 @@
+from PIL.ImageOps import scale
 from matplotlib import pyplot as plt
 from PIL import Image
 from math import ceil
 import random
 
+from numpy.core.fromnumeric import size
+
 # Use PIL make a grid
-
-
 def make_grid(images, num_col, margin=0, size=None, background=(255, 255, 255)):
     if size == None:
         size = images[0].size
@@ -36,7 +37,7 @@ def make_grid(images, num_col, margin=0, size=None, background=(255, 255, 255)):
     return grid
 
 
-def sampleData(dataset, num, shuffle=False):
+def sampleUnique(dataset, num, shuffle=False):
     k = min(len(dataset), num)
 
     if shuffle:
@@ -51,7 +52,7 @@ def showExamplePIL(dataset, num_col, num_row=None, shuffle=False, margin=0, size
     """
     if num_row == None:
         num_row = num_col
-    sample = sampleData(dataset, num_col*num_row, shuffle)
+    sample = sampleUnique(dataset, num_col*num_row, shuffle)
     grid = make_grid(sample, num_col, margin, size, background)
 
     grid.show()
@@ -73,4 +74,11 @@ if __name__ == "__main__":
     from font import *
     from dict import readDict
     from transform import *
-    from time import time
+    from ryutime import TimeMemo
+
+    fontpath="/home/eugene/workspace/dataset/font/font/7/AozoraMinchoRegular.ttf"
+    image=ttfimageget(fontpath,'龍',background=120)
+
+    image2=affine(image,shear=(5,5),size=(128,128),scale=(0.5,0.5))
+
+    image2.show()

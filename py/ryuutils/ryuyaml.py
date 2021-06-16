@@ -12,6 +12,9 @@ def saveyaml(conf:dict,path:str):
     with open(path,'a') as f:
         yaml.dump(conf,f,default_flow_style=False)
 
+def check_config(conf:dict)->dict:
+
+    pass
 if __name__ == "__main__":
 
     pass

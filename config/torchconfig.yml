@@ -29,14 +29,14 @@ Train:
     # data_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
     # label_dir: /home/eugene/workspace/ryuocr/py/tensorsscd/
     ttfpath :
-      - "/home/eugene/workspace/resource/font/7/AozoraMinchoRegular.ttf"
-      - "/home/eugene/workspace/resource/font/7/GenShinGothic-Regular.ttf"
-      - "/home/eugene/workspace/resource/font/7/logotypejp_corpmin.ttf"
-      - "/home/eugene/workspace/resource/font/7/mgenplus-1c-regular.ttf"
-      - "/home/eugene/workspace/resource/font/7/mplus-1c-regular.ttf"
-      - "/home/eugene/workspace/resource/font/7/VL-Gothic-Regular.ttf"
-      - "/home/eugene/workspace/resource/font/7/yasashisa_gothic.ttf"
-    dict : "/home/eugene/workspace/dataset/font/dict3107jp.txt"
+      - "/home/eugene/workspace/dataset/font/font/7/AozoraMinchoRegular.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/GenShinGothic-Regular.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/logotypejp_corpmin.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/mgenplus-1c-regular.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/mplus-1c-regular.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/VL-Gothic-Regular.ttf"
+      - "/home/eugene/workspace/dataset/font/font/7/yasashisa_gothic.ttf"
+    dict : "/home/eugene/workspace/dataset/dict/japanese_3107jp.txt"
     fontsize: 64
     sscdsize: 20
     transform:

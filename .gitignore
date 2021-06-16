@@ -1,7 +1,6 @@
 # C++ files
 *.o
 *.out
-ryuocr
 
 # test
 /test
@@ -11,6 +10,7 @@ test*.*
 # other
 *.png
 !*example.png
+result.md
 
 # python files
 /__pycache__

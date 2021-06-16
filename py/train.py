@@ -1,18 +1,21 @@
 import ryuutils
-from ryuutils import ryuyaml as yaml
-from ryuutils import sscd 
-from ryuutils import ryutime
-from ryuutils import example 
-from ryuutils import ryudataset
 
-import ryutorch
-import ryutorch.transform as rtt
-import ryutorch
-from ryutorch import model,evaluate
-import ryutorch.dataset
-from ryutorch.dataset.baseset import RyuImageset
-from ryutorch.dataset.loader import RyuLoader
+def parse_args():
+    import argparse
+    description = "OCR research program write by Y. Long."
+    parser = argparse.ArgumentParser(description=description)
 
-# ------------program global mode -----------
-timeMemo = ryutime.TimeMemo()
-nowTimeStr = timeMemo.nowTimeStr()
+    # parser.add_argument("mode",type=str,help="train/test")
+    parser.add_argument("-c","--config",type=str, help="Path of config file.")
+
+    return parser.parse_args()
+
+
+def main():
+    # for cmd
+    args = parse_args()
+
+    print(args)
+
+if __name__ == '__main__':
+    main()

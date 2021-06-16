@@ -1,5 +1,4 @@
 from matplotlib import pyplot as plt
-from socket import gethostname
 import torch
 import torch.nn as nn
 import torch.tensor
@@ -41,12 +40,9 @@ timeMemo = ryutime.TimeMemo()
 nowTimeStr = timeMemo.nowTimeStr()
 
 # Set print goal
-# outputScreen = False
-outputScreen = True
 
 # ----------- training parameter ---------
 configPath = "/home/eugene/workspace/ryuocr/py/config/torchconfig.yml"
-
 config = yaml.loadyaml(configPath)
 
 # ---------- global parameter -----
@@ -57,12 +53,6 @@ saveModelPath = paramGlobal["save_model_dir"] + nowTimeStr+'.pt'
 # Accuracy History Graph Save Path
 accGraphSavePath = paramGlobal["save_result_dir"] + nowTimeStr+"_acc.png"
 logPath = paramGlobal["save_result_dir"] + nowTimeStr+".yml"
-
-
-if not outputScreen:
-    outputfilename = paramGlobal["save_result_dir"] + nowTimeStr+"_log.txt"
-    pfile = open(outputfilename, mode='w')
-    sys.stdout = pfile
 
 epochs = paramGlobal["epoch"]
 print_iter_step = paramGlobal["print_iter_step"]
@@ -168,6 +158,11 @@ optimizer = optim.Adam(net.parameters(), lr=learning_rate)
 sumEpoch = 0
 accuracy_history = dict()
 loss_history = []
+
+
+
+
+
 
 # ------------ Run ------------------
 timeMemo.reset()

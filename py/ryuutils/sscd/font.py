@@ -65,7 +65,7 @@ def ttfdictget(fontpath, dicts, size=64, padding=2, background=0, fill=255):
     return images
 
 
-def multi_ttfdictget(fonts, dicts, size=64, padding=2,background=0, fill=255):
+def multi_ttfdictget(fonts:list, dicts:dict, size=64, padding=2,background=0, fill=255):
     """ 
     Return a font character image with given dict list and multiple ttf files.
     """
