@@ -1,6 +1,7 @@
-from skimage import feature
-from torchvision import transforms, io
 from torch import from_numpy
+
+# Import
+from torchvision import transforms, io
 import numpy
 
 normalize = transforms.Normalize(
@@ -8,54 +9,27 @@ normalize = transforms.Normalize(
     std=[0.229, 0.224, 0.225]
 )
 
-default_preprocess = transforms.Compose([
-    normalize
-])
 
-class RyuLoader(object):
-    def __init__(self,preprocess=None):
-        self.preprocess=default_preprocess
-        if preprocess != None:
-            self.preprocess=preprocess
+def getLoader(size,is_path:bool,preprocess=None):
 
-    def file_loader(self,path):
-        image = io.read_image(path)
-        # Convert uint8 to float32 and rescale
-        image = transforms.functional.convert_image_dtype(image)
-        img_tensor = self.preprocess(image)
-        return img_tensor
+    if preprocess == None:
+        preprocess = transforms.Compose([
+            transforms.Resize(size),
+            normalize
+        ])
 
-    def tensor_loader(self,image):
-        image=transforms.functional.convert_image_dtype(image)
-        img_tensor = self.preprocess(image)
-        return img_tensor
+    if is_path:
+        def _func(path):
+            image = io.read_image(path)
+            
+            # Convert uint8 to float32 and rescale
+            image = transforms.functional.convert_image_dtype(image)
+            img_tensor = preprocess(image)
+            return img_tensor
+    else:
+        def _func(image):
+            image = transforms.functional.convert_image_dtype(image)
+            img_tensor = preprocess(image)
+            return img_tensor
+    return _func
 
-    # def tensor_hogvisual_loader(self,image):
-
-    #     image = transforms.functional.convert_image_dtype(image)
-    #     image = self.preprocess(image)
-
-    #     _, hog_img = feature.hog(image.numpy().transpose(
-    #         (1, 2, 0)), visualize=True)
-
-    #     hogimg_tensor = from_numpy(numpy.array([hog_img]))
-    #     return image, hogimg_tensor
-
-    def file_hog_loader(self,path):
-        image = io.read_image(path)
-        # Convert uint8 to float32 and rescale
-        image = transforms.functional.convert_image_dtype(image)
-        image = self.preprocess(image)
-
-        img_ski = feature.hog(image.numpy().transpose(
-            (1, 2, 0))).astype(numpy.float32)
-        hog_tensor = from_numpy(img_ski)
-        return hog_tensor
-
-    def tensor_hog_loader(self,image):
-        image = transforms.functional.convert_image_dtype(image)
-        image = self.preprocess(image)
-        img_ski = feature.hog(image.numpy().transpose(
-            (1, 2, 0))).astype(numpy.float32)
-        hog_tensor = from_numpy(img_ski)
-        return hog_tensor

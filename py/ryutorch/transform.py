@@ -2,7 +2,6 @@ import torch
 import numpy
 from torchvision.transforms import functional as F
 
-
 # Convert list of pil image to torch tensor. (Have Copy)
 def pil2Tensor(pilimage: list):
     images = []
@@ -15,7 +14,7 @@ def pil2Tensor(pilimage: list):
         img = img.permute((2, 0, 1))
         images.append(img)
     t = torch.stack(images)
-    return t.clone().detach()
+    return t
 
 # None copy
 def tensor2Pil(t):
@@ -136,37 +135,3 @@ def normal_perspective(trainData, distortion_scale=0.5, nstd=1/3):
             trainData[i], startpoints=startpoints, endpoints=endpoints)
         pass
 
-
-# Define Morphology Transform
-known_patterns = {
-    "corner": ["1:(... ... ...)->0", "4:(00. 01. ...)->1"],
-    "dilation4": ["4:(... .0. .1.)->1"],
-    "dilation8": ["4:(... .0. .1.)->1", "4:(... .0. ..1)->1"],
-    "erosion4": ["4:(... .1. .0.)->0"],
-    "erosion8": ["4:(... .1. .0.)->0", "4:(... .1. ..0)->0"],
-    "edge": [
-        "1:(... ... ...)->0",
-        "4:(.0. .1. ...)->1",
-        "4:(01. .1. ...)->1",
-    ],
-}
-
-
-def random_morph(trainData, op_name=None):
-    # if op_name not in known_patterns:
-    #     raise Exception("Unknown pattern " + op_name + "!")
-    dil = ImageMorph.MorphOp(op_name="dilation8")
-    ero = ImageMorph.MorphOp(op_name="erosion4")
-
-    ops = [dil, ero]
-
-    for i in range(len(trainData)):
-        r = torch.randint(2, (1, 1)).item()
-        if r == 1:
-            continue
-
-        data = F.rgb_to_grayscale(trainData[i].clone(), 1)
-
-        _, data = ero.apply(F.to_pil_image(data, mode="L"))
-        data = ImageOps.colorize(data, "black", "white")
-        trainData[i] = F.pil_to_tensor(data)

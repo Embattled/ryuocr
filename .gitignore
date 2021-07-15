@@ -1,22 +1,10 @@
-# C++ files
-*.o
-*.out
-
-# test
-/test
-*.csv
-test*.*
-
-# other
-*.png
-!*example.png
-result.md
+*
+!.gitignore
+!*/
+!*.md
 
 # python files
-/__pycache__
-__pycache__/
-*.pt
+!*.py
 
 # system output
-*.txt
-/py/output
+!sscd_example.png

@@ -1,24 +1,28 @@
 #! python3
-import py
-
+import py 
 
 def parse_args(mMain=True, add_help=True):
     import argparse
 
     # def str2bool(v):
     #     return v.lower() in ("true", "t", "1")
-
+    description = "OCR research program write by Y. Long."
     if mMain:
-        parser = argparse.ArgumentParser(add_help=add_help)
+        parser = argparse.ArgumentParser(add_help=add_help,description=description)
 
         # global 
-
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument("--train",action="store_true",help="Train mode.")
         mode.add_argument("--test",action="store_true",help="Test mode.")
         mode.add_argument("--oneoff",action="store_true",help="Train a model and test it without save it to disk.")
         
+        # config path
         parser.add_argument("-c","--config", type=str, default="config/default.yml",help="Path to config file")
+        
+        # for debug and experiment
+        parser.add_argument("-l","--loop",type=int,default=1,help="Run multiple times.")
+        parser.add_argument("--test_sscd",action="store_true",default=False,help="Show example of sscd.")
+
 
         """
         # params for prediction engine
@@ -76,8 +80,23 @@ def parse_args(mMain=True, add_help=True):
         return parser.parse_args()
 
 def main():
+    import os.path
+
     args=parse_args()
-    print(args)
+    config_path=os.path.abspath(args.config)
+
+    if args.oneoff:
+        from py import oneoff
+        oneoff.run(config_path,args.test_sscd,args.loop)
+    elif args.train:
+        from py import train
+        train.run(config_path)
+    elif args.test:
+        from py import test
+        test.run(config_path)
+    else:
+        args.print_usage()
+
 
 if __name__ == "__main__":
     main()

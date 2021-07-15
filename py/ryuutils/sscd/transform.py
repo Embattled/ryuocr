@@ -2,7 +2,7 @@ import numpy
 import PIL
 
 from math import floor, sin, cos, tan, pi
-from PIL import ImageOps, Image
+from PIL import ImageOps, Image, ImageMorph
 
 rng = numpy.random.default_rng()
 # PILSet to numpy array (Copy)
@@ -13,8 +13,9 @@ def pilSet2Numpy(images):
     if len(images) == 0:
         raise ValueError
     for img in images:
-        npimages.append(numpy.array(img))
-    return numpy.asarray(npimages)
+        npimages.append(numpy.asarray(img))
+    npimages = numpy.asarray(npimages)
+    return npimages
 
 
 def numpySet2PilSet(npimages):
@@ -26,8 +27,6 @@ def numpySet2PilSet(npimages):
 
 
 # ------------------- Transform ------------- function
-
-
 def randomColorizeSet(images, gap=50, inplace=True):
     newImages = []
     if inplace:
@@ -79,7 +78,7 @@ def affine(image, rotation=0, scale: tuple = (1, 1), shear: tuple = (0, 0), tran
 
     # move center of origin image to (0,0)
     affine_mat = numpy.array([[1, 0, cx], [0, 1, cy], [
-                       0, 0, 1]], dtype=numpy.float32)
+        0, 0, 1]], dtype=numpy.float32)
     # scale
     affine_mat = numpy.dot(affine_mat, numpy.array(
         [[scale[0], 0, 0], [0, scale[1], 0], [0, 0, 1]]))
@@ -123,7 +122,7 @@ def affineDirect(image, data: tuple, resample=PIL.Image.BILINEAR, size=None, cen
         ty = floor((size[0]-1)/2)
     # move center of origin image to (0,0)
     affine_mat = numpy.array([[1, 0, cx], [0, 1, cy], [
-                       0, 0, 1]], dtype=numpy.float32)
+        0, 0, 1]], dtype=numpy.float32)
     # apply matrix
     affine_mat = numpy.dot(affine_mat, numpy.array(
         [[data[0], data[1], 0], [data[2], data[3], 0], [0, 0, 1]]))
@@ -192,12 +191,6 @@ def uniformAffineDirect(images, range14=(1, 1), range23=(0, 0), p=0.5, inplace=T
         target_23 = rng.uniform(low=range23[0], high=range23[1], size=(n, 2))
 
     datas = numpy.hstack((target_14[:, 0:1], target_23, target_14[:, 1:2]))
-
-    # print(datas)
-    # print(datas.shape)
-    # print(datas[12].shape)
-    # import sys
-    # sys.exit(0)
     new_images = []
     if inplace:
         for i in range(n):
@@ -253,7 +246,7 @@ def perspective(image, target_ratio, size=None, resample=PIL.Image.BILINEAR):
 
 
 # p means the probability of data will be transform.
-def uniformPerspective(images, scale=(-0.1,0.2), p=0.5, inplace=True):
+def uniformPerspective(images, scale=(-0.1, 0.2), p=0.5, inplace=True):
     n = len(images)
     target_ratio = rng.uniform(low=scale[0], high=scale[1], size=(n, 8))
     p_trans = rng.uniform(low=0, high=1, size=n)
@@ -273,12 +266,53 @@ def uniformPerspective(images, scale=(-0.1,0.2), p=0.5, inplace=True):
     return new_images
 
 
-# sscd create
-def getTransform(para: dict):
+# Define Morphology Transform
+known_patterns = {
+    "corner": ["1:(... ... ...)->0", "4:(00. 01. ...)->1"],
+    "dilation4": ["4:(... .0. .1.)->1"],
+    "dilation8": ["4:(... .0. .1.)->1", "4:(... .0. ..1)->1"],
+    "erosion4": ["4:(... .1. .0.)->0"],
+    "erosion8": ["4:(... .1. .0.)->0", "4:(... .1. ..0)->0"],
+    "edge": [
+        "1:(... ... ...)->0",
+        "4:(.0. .1. ...)->1",
+        "4:(01. .1. ...)->1",
+    ],
+    "erosion4l":["N:(.1. .1. .0.)->0"],
+    "erosion8l":["4:(.1. .1. .0.)->0","4:(1.. .1. ..0)->0"]
+}
 
-    def transform():
-        pass
-    return transform
+
+def morphology(image, **kwargs):
+    morph = ImageMorph.MorphOp(**kwargs)
+    _, img = morph.apply(image)
+    return img
+
+
+def randomMorph(images, inplace=True, p=0.3):
+    n = len(images)
+    patterns = ['dilation4', 'dilation8', 'erosion4l']
+    target_pattern = rng.integers(low=0, high=len(patterns), size=(n))
+    p_trans = rng.uniform(low=0, high=1, size=n)
+
+    new_images = []
+    if inplace:
+        for i in range(n):
+            if p_trans[i] >= p:
+                continue
+            pt=known_patterns[patterns[target_pattern[i]]]
+            # pt=known_patterns[patterns[2]]
+            images[i] = morphology(
+                images[i], patterns=pt)
+        new_images = images
+    else:
+        for i in range(n):
+            if p_trans[i] >= p:
+                new_images.append(image)
+                continue
+            image = morphology(images[i], op_name=patterns[target_pattern[i]])
+            new_images.append(image)
+    return new_images
 
 
 def sscdCreate(originData, originLabel, transfunction, epoch=1):
@@ -291,6 +325,55 @@ def sscdCreate(originData, originLabel, transfunction, epoch=1):
     return sscd, labels
 
 
-if __name__ == '__main__':
-    a=Image.radial_gradient('P')
-    a.show()
+def _getTransform(para: dict):
+    name = para.setdefault("name", "None")
+    if name == "perspective":
+        scale = para.setdefault("scale", [0, 0, 1])
+        p = para.setdefault("p", 0.5)
+
+        def transform(images):
+            uniformPerspective(images, scale=scale, p=p)
+            return images
+    elif name == "affine":
+        rotation = para.setdefault("rotation", 0)
+        scale = para.setdefault("scale", (1, 1))
+        shear = para.setdefault("shear", (0, 0))
+        para.setdefault
+        p = para.setdefault("p", 0.5)
+
+        def transform(images):
+            uniformAffine(images, rotation=rotation,
+                          shear=shear, scale=scale, p=p)
+            return images
+    elif name == "color":
+        gap = para.setdefault("gap", 50)
+
+        def transform(images):
+            randomColorizeSet(images, gap=gap)
+            return images
+    elif name == "morph":
+        def transform(images):
+            p = para.setdefault("p", 0.5)
+            randomMorph(images, p=p)
+            return images
+
+    else:
+        print("Unsupport transform function: "+"name")
+
+        def transform(images):
+            return
+    return transform
+
+
+def getTransformFunc(para: list):
+    trans = []
+    if para != None:
+        for i in range(len(para)):
+            trans.append(_getTransform(para[i]))
+
+    def transfunc(images):
+        for t in trans:
+            t(images)
+        return
+
+    return transfunc
