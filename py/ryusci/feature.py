@@ -34,3 +34,9 @@ def getFeature(args:dict):
     if name=="hog":
         return getHogFun(**args["hog"])
 
+def getFeatureList(args:list):
+    features=[]
+    for arg in args:
+        features.append(getFeature(arg))
+    return features
+

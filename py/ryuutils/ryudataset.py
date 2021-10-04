@@ -22,26 +22,30 @@ class RyuDataSet():
 
 
 class EvalDataSet(RyuDataSet):
-    def __init__(self, pathOfLabelFile, name=None):
+    def __init__(self, dir, name=None, revise=False):
         super().__init__()
 
         self.name = name
 
-        data = pd.read_csv(pathOfLabelFile, sep=',',
+        data = pd.read_csv(dir, sep=',',
                            index_col=None, header=None, names=["path", "label"])
-        data["path"] = os.path.dirname(pathOfLabelFile)+'/'+data["path"]
+        data["path"] = os.path.dirname(dir)+'/'+data["path"]
 
         self.dataPath = list(data["path"].values)
         self.dataLabel = numpy.array(data["label"])
-        sscd.dict.reviseJapanDict(self.dataLabel)
+
+        if revise:
+            sscd.dict.reviseJapanDict(self.dataLabel)
 
         # initialize some property
         self.last_res = None
+        self.best_res = None
+        self.best_acc = 0.0
 
     def readDataToMem(self):
-        self.pilData=[]
+        self.pilData = []
         for path in self.dataPath:
-            _img=Image.open(path)
+            _img = Image.open(path)
             _img.load()
             self.pilData.append(_img)
 
@@ -52,25 +56,32 @@ class EvalDataSet(RyuDataSet):
         self.last_res = predict
         compair = predict == self.dataLabel
         cnt = Counter(compair)
-        return cnt[True]/sum(cnt.values())
 
-    def getErrorCasesImageGrid(self, num=0, format="T:{} F:{}", predict=None, size=(128, 128)):
-        if self.last_res is None:
-            if predict == None:
+        acc=cnt[True]/sum(cnt.values())
+        if acc>self.best_acc:
+            self.best_acc=acc
+            self.best_res=predict
+        return acc
+
+    def getErrorCasesImageGrid(self, num=0, format="T:{} F:{}", predict=None, size=(128, 128),last=False):
+        if predict == None:
+            if self.last_res is None:
                 raise ValueError("There has been no evaluation yet.")
+            elif last==True:
+                predict=self.last_res
             else:
-                self.last_res = predict
-
+                predict=self.best_res
+        
         errorSet = []
         errorLabel = []
         for i in range(len(self.dataLabel)):
-            if self.dataLabel[i] != self.last_res[i]:
-                _img=Image.open(self.dataPath[i])
+            if self.dataLabel[i] != predict[i]:
+                _img = Image.open(self.dataPath[i])
                 _img.load()
                 errorSet.append(_img)
 
                 t = self.dataLabel[i]
-                f = self.last_res[i]
+                f = predict[i]
                 errorLabel.append(format.format(t, f))
 
         if len(errorSet) == 0:
@@ -81,21 +92,54 @@ class EvalDataSet(RyuDataSet):
         return example.getExampleImageLabeledGridPIL(
             errorSet, errorLabel, 8, num//8, size=size)
 
+    def getAllCasesImageGrid(self, num=0, format="T:{} F:{}", predict=None, size=(128, 128),last=False):
+        if predict == None:
+            if self.last_res is None:
+                raise ValueError("There has been no evaluation yet.")
+            elif last==True:
+                predict=self.last_res
+            else:
+                predict=self.best_res
+
+        allset = []
+        label = []
+        for i in range(len(self.dataLabel)):
+            _img = Image.open(self.dataPath[i])
+            _img.load()
+            allset.append(_img)
+
+            if self.dataLabel[i] != predict[i]:
+
+                t = self.dataLabel[i]
+                f = predict[i]
+                label.append(format.format(t, f))
+            else:
+                label.append(self.dataLabel[i])
+
+        if num == 0:
+            num = len(allset)
+        return example.getExampleImageLabeledGridPIL(
+            allset, label, 8, num//8, size=size)
+
+
 class SSCDGenerator():
-    def __init__(self, ttfpaths, dictpath, fontsize):
+    def __init__(self, ttfpaths,  fontsize, dictpara, transform, padding=None):
 
         self.num_cls, self.num_char_dict, self.char_num_dict = sscd.dict.readDict(
-            dictpath)
+            **dictpara)
 
         self.ttfpaths = ttfpaths
         self.fontDataSize = fontsize
+        self.fontDataPadding = padding
 
         # get font data
         self.fontData, self.fontLabelNum = sscd.font.multiFontCharImageDictget(
-            self.ttfpaths, self.char_num_dict, size=self.fontDataSize)
+            self.ttfpaths, self.char_num_dict, size=self.fontDataSize, padding=self.fontDataPadding)
 
         # initialize some property
         self.transform_function = lambda images: None
+
+        self.setTransformFunc(sscd.transform.getTransformFunc(transform))
 
     def setTransformFunc(self, trans_func):
         self.transform_function = trans_func
@@ -109,11 +153,16 @@ class SSCDGenerator():
             label.extend(self.fontLabelNum)
         return data, label
 
-    def getFontDataSample(self, num: int):
+    def getFontDataSample(self, num: int,shuffle):
         data = []
         label = []
-
-        smp = random.choices(range(len(self.fontData)), k=num)
+        if shuffle==True:
+            smp = random.choices(range(len(self.fontData)), k=num)
+        else:
+            smp=[]
+            while len(smp)<num:
+                k = min(len(self.fontData),num-len(smp))
+                smp.extend(range(len(self.fontData))[0:k])
         for i in smp:
             data.append(self.fontData[i].copy())
             label.append(self.fontLabelNum[i])
@@ -124,8 +173,8 @@ class SSCDGenerator():
         self.transform_function(data)
         return data, label
 
-    def getTransformedDataSample(self, num: int):
-        data, label = self.getFontDataSample(num)
+    def getTransformedDataSample(self, num: int,shuffle=True):
+        data, label = self.getFontDataSample(num,shuffle)
         self.transform_function(data)
         return data, label
 
@@ -135,21 +184,26 @@ class SSCDGenerator():
     def getLabelNum2CharDict(self):
         return self.num_char_dict
 
+    def getTrainData(self, type: str, num: int):
+        if type == "bunch":
+            trainData, trainLabel = self.getTransformedDataBunch(
+                bunch=num)
+        elif type == "sample":
+            trainData, trainLabel = self.getTransformedDataSample(
+                num)
+        else:
+            raise ValueError("Invalid sscd type: {}".format(type))
+        return trainData, trainLabel
+
 
 def getSSCD(profile: dict):
-    ttfpath = profile["ttfpath"]
-    dictpath = profile["dict"]
-    fontsize = profile["fontsize"]
 
-    sscdSet = SSCDGenerator(ttfpath, dictpath, fontsize)
-    sscdSet.setTransformFunc(
-        sscd.transform.getTransformFunc(profile["transform"]))
+    sscdSet = SSCDGenerator(**profile)
     return sscdSet
 
 
 def getRealSet(profile: dict):
-    name = profile.setdefault("name", "test set")
-    return EvalDataSet(profile["dir"], name=name)
+    return EvalDataSet(**profile)
 
 
 def getDataset(setParmer: dict):

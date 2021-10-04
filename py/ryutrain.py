@@ -2,7 +2,6 @@
 
 from ryusci import model as sciModel
 from ryutorch import model as torchModel
-
 from ryuutils import ryuyaml, ryudataset, ryutime, sscd
 
 
@@ -11,7 +10,7 @@ def getModel(args: dict,**kwargs):
     series = args["series"]
 
     if series == "scikit":
-        return sciModel.getSciModel(args["scikit"])
+        return sciModel.getSciModel(args["scikit"],**kwargs)
     elif series == "torch":
         return torchModel.getTorchModel(args["torch"],**kwargs)
     elif series == "tf":

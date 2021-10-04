@@ -1,5 +1,6 @@
 #! python3
-import py 
+import py
+
 
 def parse_args(mMain=True, add_help=True):
     import argparse
@@ -8,22 +9,46 @@ def parse_args(mMain=True, add_help=True):
     #     return v.lower() in ("true", "t", "1")
     description = "OCR research program write by Y. Long."
     if mMain:
-        parser = argparse.ArgumentParser(add_help=add_help,description=description)
+        parser = argparse.ArgumentParser(
+            add_help=add_help, description=description)
 
-        # global 
+        # global
         mode = parser.add_mutually_exclusive_group(required=True)
-        mode.add_argument("--train",action="store_true",help="Train mode.")
-        mode.add_argument("--test",action="store_true",help="Test mode.")
-        mode.add_argument("--oneoff",action="store_true",help="Train a model and test it without save it to disk.")
-        
+        mode.add_argument("--train", action="store_true", help="Train mode.")
+        mode.add_argument("--test", action="store_true", help="Test mode.")
+        mode.add_argument("--oneoff", action="store_true",
+                          help="Train a model and test it without save it to disk.")
+        mode.add_argument("--testsscd", action="store_true",
+                          help="Show example of sscd.")
+
         # config path
-        parser.add_argument("-c","--config", type=str, default="config/default.yml",help="Path to config file")
-        
+        parser.add_argument("-c", "--config", type=str,
+                            default="config/default.yml", help="Path to config file")
+
         # for debug and experiment
-        parser.add_argument("-l","--loop",type=int,default=1,help="Run multiple times.")
-        parser.add_argument("--test_sscd",action="store_true",default=False,help="Show example of sscd.")
+        parser.add_argument("-l", "--loop", type=int,
+                            default=1, help="Run multiple times.")
 
+        # model
+        parser.add_argument("-p", "--pretrained", action="store_true", default=False,
+                            help="Whether use pretrained model, need write path in config file.")
 
+        # params for test sscd
+        par_testsscd=parser.add_argument_group("sscd","Parameter for test sscd.")
+        par_testsscd.add_argument("--size", type=int, default=128,
+                            help="resolution of one sscd example.")
+        par_testsscd.add_argument("--sscdmargin", type=int, default=0,
+                            help="margin between sscd examples.")
+        par_testsscd.add_argument(
+            "--sscdshuffle", action="store_true", help="shuffle test sscd")
+        par_testsscd.add_argument("--withlabel", action="store_true",
+                            default="whether sscd examples with their labels")
+        par_testsscd.add_argument("--sscdcol", type=int, default=8,
+                            help="columns of sscd examples")
+        par_testsscd.add_argument("--sscdrow", type=int, default=4,
+                            help="rows of sscd examples")
+        par_testsscd.add_argument(
+            "--sscdpath", type=str, default="sscd_example.png", help="path of sscd examples")
         """
         # params for prediction engine
         parser.add_argument("--use_gpu", type=str2bool, default=True)
@@ -79,21 +104,25 @@ def parse_args(mMain=True, add_help=True):
         """
         return parser.parse_args()
 
+
 def main():
     import os.path
 
-    args=parse_args()
-    config_path=os.path.abspath(args.config)
+    args = parse_args()
+    config_path = os.path.abspath(args.config)
 
     if args.oneoff:
         from py import oneoff
-        oneoff.run(config_path,args.test_sscd,args.loop)
+        oneoff.run(config_path, args.loop, pretrained=args.pretrained)
     elif args.train:
         from py import train
         train.run(config_path)
     elif args.test:
         from py import test
         test.run(config_path)
+    elif args.testsscd:
+        from py import testsscd
+        testsscd.run(config_path, **vars(args))
     else:
         args.print_usage()
 

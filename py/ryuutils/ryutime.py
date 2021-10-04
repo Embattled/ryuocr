@@ -3,15 +3,15 @@ import time
 class TimeMemo:
     def __init__(self):
         self.t=time.time()
+
+    def reset(self):
+        self.t=time.time()
     
-    def nowTimeStr(self,gap='-'):
+    def getNowTimeStr(self,gap='-'):
         if gap != '-':
             fm="%Y"+gap+"%m"+gap+"%d"+gap+"%H"+gap+"%M"+gap+"%S"
             return time.strftime(fm)
         return time.strftime("%Y-%m-%d-%H-%M-%S")
-
-    def reset(self):
-        self.t=time.time()
 
     def getTimeCostStr(self)->str:
         e=time.time()

@@ -10,11 +10,10 @@ import sscd
 def sampleUnique(dataset, num, sampleIndex=None, shuffle=False):
     k = min(len(dataset), num)
 
-    if shuffle:
+    if shuffle==True:
         if sampleIndex == None:
             sampleIndex = random.sample(range(len(dataset)), k)
         data = []
-
         for i in sampleIndex:
             data.append(dataset[i])
         return data
@@ -129,7 +128,6 @@ def getExampleImageLabeledGridPIL(dataset, labels, num_col, num_row=None, shuffl
         dataset, num, sampleIndex=sampleIndex, shuffle=shuffle)
     sampleLabels = sampleUnique(
         labels, num, sampleIndex=sampleIndex, shuffle=shuffle)
-
     grid = makeImageGridLabeled(
         sampleImages, sampleLabels, num_col, margin, size, background)
 

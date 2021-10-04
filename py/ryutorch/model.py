@@ -1,5 +1,6 @@
 
 # Import
+from sys import int_info
 import torch
 from torch.utils.data import DataLoader, dataloader
 
@@ -15,9 +16,18 @@ class TorchModel:
         self.net = None
         self.size = None
         self.optimizer = None
-        self.loss_func = None
+        self.optim_sched = None
 
+        self.loss_func = None
         self.loss_history = []
+        self.process = None
+        self.total_epochs = 0
+
+        # dataset
+        self.sscdSet = None
+        self.validSet = None
+        self.highestValidAcc = 0.0
+        self.highestValidAccStr = None
 
     def _getLabel(self, prob):
         return numpy.argmax(prob, axis=1)
@@ -28,32 +38,32 @@ class TorchModel:
     def setCharDict(self, num_char_dict: dict):
         self.num_char_dict = num_char_dict
 
+    def setSSCD(self, sscd):
+        self.sscdSet = sscd
+        self.setCharDict(self.sscdSet.getLabelNum2CharDict())
+
+    def setValidSet(self, validset):
+        self.validSet = validset
+
     # Set Network Parts
     def setNetwork(self, **kwagrs):
         self.net, self.size = deepnet.getNetwork(**kwagrs)
 
-    def setOptimizer(self, **kwargs):
-        self.optimizer = deepnet.getOptimizer(self.net, **kwargs)
-
     def setLoss(self, **kwargs):
         self.loss_func = deepnet.getLoss(**kwargs)
 
-    def setProcess(self, epoch: int, batchsize: int, shuffle: bool, print=False, iter_step=50):
-        self.epoch = epoch
-        self.batchsize = batchsize
-        self.shuffle = shuffle
-        self.print = print
-        self.iter_step = iter_step
+    def _train(self,  trainLoader, epochs: int, it_step=50, print_log=False, valid=False):
 
-    def _train(self,  trainLoader, epochs: int, it_step=50, print_log=False):
+        if valid == True and self.validSet == None:
+            raise ValueError("Valid set is None.")
 
-        epoch_num = 0
         it_num = 0
         running_loss = 0
 
         loss_str_ori = "[Epoch: {}] --- Iteration: {}, Loss: {}."
         for epoch in range(epochs):
-            epoch_num += 1
+            self.total_epochs += 1
+
             for _, data in enumerate(trainLoader):
 
                 # Take the inputs and the labels for 1 batch.
@@ -79,23 +89,72 @@ class TorchModel:
 
                 if (it_num) % it_step == 0:
                     loss_str = loss_str_ori.format(
-                        epoch_num, it_num, running_loss / it_num)
+                        self.total_epochs, it_num, running_loss / it_num)
                     self.loss_history.append(loss_str)
                     if print_log:
                         print(loss_str)
+                    if valid:
+                        acc = self.validation()
+                        print("Accuracy on validation set {}".format(acc))
+                        if acc > self.highestValidAcc:
+                            self.highestValidAccStr = "Best : [Epoch: {}] --- Iteration: {}, Acc: {}.".format(
+                                self.total_epochs, it_num, acc)
+                            self.highestValidAcc = acc
+            if valid:
+                acc = self.validation()
+                print("Accuracy on validation set after {} epochs :{}".format(
+                    self.total_epochs, acc))
+                if acc > self.highestValidAcc:
+                    self.highestValidAccStr = "Best : [Epoch: {}] --- Acc: {}.".format(
+                        self.total_epochs, acc)
+                    self.highestValidAcc = acc
 
-    def train(self, trainData, trainLabel):
+            if self.optim_sched != None:
+                self.optim_sched.step()
+                print("Update learning rate, now  %1.10f" %
+                      (self.optim_sched.get_last_lr()[0]))
+        self.optimizer.zero_grad()
+
+    def _startTrain(self, trainData, trainLabel,
+                    epoch,
+                    batchsize,
+                    shuffle,
+                    print,
+                    iter_step,
+                    valid=False):
+
         trainData = transform.pil2Tensor(trainData)
         trainLabel = torch.tensor(trainLabel)
-        
+
         loader = dataset.loader.getLoader(self.size, is_path=False)
         trainset = dataset.baseset.RyuImageset(
             trainData, trainLabel, loader=loader)
         trainLoader = DataLoader(
-            trainset, batch_size=self.batchsize, shuffle=self.shuffle)
+            trainset, batch_size=batchsize, shuffle=shuffle)
 
-        self._train(trainLoader, self.epoch,
-                    it_step=self.iter_step, print_log=self.print)
+        self._train(trainLoader, epoch,
+                    it_step=iter_step, print_log=print, valid=valid)
+
+
+    def train(self):
+        if self.process == None:
+            raise ValueError("Emply train process")
+
+        print("Start training.")
+        num_process = 0
+        for process in self.process:
+            num_process += 1
+            print("Start training process {}".format(num_process))
+
+            self.optimizer, self.optim_sched = deepnet.getOptimizer(
+                self.net, **process["optimizer"])
+
+            for _ in range(process["loop"]):
+
+                trainData, trainLabel = self.sscdSet.getTrainData(
+                    **process["sscd"])
+                self._startTrain(trainData, trainLabel, **process["para"])
+        
 
     def _inference(self, testLoader, proba=False):
         self.net.eval()
@@ -128,28 +187,35 @@ class TorchModel:
 
     def inference(self, testData, testLabel=None, num_label=False, is_path=True):
 
+        if not is_path:
+            testData = transform.pil2Tensor(testData)
         loader = dataset.loader.getLoader(self.size, is_path=is_path)
         if testLabel == None:
             testLabel = torch.zeros(len(testData))
         testSet = dataset.baseset.RyuImageset(testData, testLabel, loader)
-        testLoader = DataLoader(testSet, self.batchsize, shuffle=False)
+        testLoader = DataLoader(testSet, 64, shuffle=False)
 
         res = self._inference(testLoader)
         if not num_label:
             res = self._getCharLabel(res)
         return res
 
+    def validation(self):
+        res = self.inference(
+            self.validSet.dataPath, num_label=False, is_path=True)
+        acc = self.validSet.evaluate(res)
+        return acc
+
     def save(save_path):
         pass
 
 
-def getTorchModel(args: dict, num_cls):
+def getTorchModel(args: dict, num_classes):
     model = TorchModel()
-    model.setNetwork(**args["architecture"], num_cls=num_cls)
-    print(model.net)
+    model.setNetwork(**args["architecture"], num_classes=num_classes)
     if args["gpu"]:
         model.net.cuda()
-    model.setOptimizer(**args["optimizer"])
-    model.setProcess(**args["process"])
+    print(model.net)
+    model.process = args["process"]
     model.setLoss(**args["loss"])
     return model

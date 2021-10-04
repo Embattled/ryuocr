@@ -1,5 +1,6 @@
 
 # My import
+from numpy.lib.function_base import append
 from sklearn import neighbors, svm
 from . import feature
 import numpy
@@ -9,7 +10,14 @@ from PIL import Image
 class SciModel:
     def __init__(self):
         self.cls = None
+        self.process = None
+        self.ensemble = None
+        self.num_classes = None
 
+        # dataset
+        self.sscdSet = None
+        self.validSet = None
+        
     # label operation
     def _getLabel(self, prob):
         return numpy.argmax(prob, axis=1)
@@ -22,70 +30,101 @@ class SciModel:
 
     # feature
     def setFeature(self, args: dict):
-        self.feature = feature.getFeature(args)
+        self.feature = feature.getFeatureList(args)
 
-    def train(self, trainData, label):
-        # Get feature
+    def setSSCD(self, sscd):
+        self.sscdSet = sscd
+        self.setCharDict(self.sscdSet.getLabelNum2CharDict())
+
+    def setValidSet(self, validset):
+        self.validSet = validset
+
+    def _train(self, trainData, label, cls_i=0, f_i=0):
         trainFeature = []
         for image in trainData:
-            _feature = self.feature(image)
+            _feature = self.feature[f_i](image)
             trainFeature.append(_feature)
         trainFeature = numpy.array(trainFeature)
-        self.cls.fit(trainFeature, label)
+        self.cls[cls_i].fit(trainFeature, label)
 
-    def inference(self, testData, is_path:bool, num_label=False):
-        # Get feature
-        testFe = []
-        for image in testData:
-            if is_path:
-                image=Image.open(image)
-                image.load()
-            _feature = self.feature(image)
-            testFe.append(_feature)
+    def train(self):
+        if self.process == None:
+            raise ValueError("Emply train process")
 
-        testFe = numpy.array(testFe)
-        res = self.cls.predict(testFe)
+        msr_t = len(self.cls)//len(self.feature)
+        for process in self.process:
+            for f_i in range(len(self.feature)):
+                for cls_i in range(f_i*msr_t, (f_i+1)*msr_t):
+                    print("Start train classifier {} using feature {}".format(
+                        cls_i+1, f_i+1))
+                    trainData, trainLabel = self.sscdSet.getTrainData(
+                        **process["sscd"])
+                    self._train(trainData, trainLabel, cls_i, f_i)
 
+    def inference(self, testData, is_path: bool, num_label=False, pure_data=False):
+
+        
+        p_e, p_s = self.inference_proba(testData, is_path)
+
+        if pure_data == True:
+            return p_e, p_s
+
+        res = p_e.argmax(axis=1)
         if not num_label:
             return self.getCharLabel(res)
         return res
 
     # Need implementation
-    def inference_proba(self):
-        pass
+    def inference_proba(self, testData, is_path: bool):
+        # Get feature
+        testFe = []
+        for featureFunc in self.feature:
+            _fes = []
+            for image in testData:
+                if is_path:
+                    image = Image.open(image)
+                    image.load()
+                _feature = featureFunc(image)
+                _fes.append(_feature)
+            testFe.append(_fes)
+        testFe = numpy.array(testFe)
 
+        p_e = numpy.zeros((len(testData), self.num_classes))
+        p_s = []
 
-class MyKNN(SciModel):
-    def __init__(self, k, weights="distance"):
-        super().__init__()
+        msr_t = len(self.cls)//len(self.feature)
+        for cls_i in range(len(self.cls)):
+            res_p = self.cls[cls_i].predict_proba(
+                testFe[cls_i // msr_t])
+            p_e += res_p
+            p_s.append(res_p)
 
-        self.cls = neighbors.KNeighborsClassifier(k, weights=weights)
-
-    def inference_proba(self, feature):
-        res = self.cls.predict_proba(feature)
-        return res
-
-
-class MySVM(SciModel):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.cls = svm.LinearSVC()
+        p_s = numpy.array(p_s)
+        return p_e, p_s
 
 
 def getClassifier(args: dict):
     classifier = args["name"]
+    l = 1
+    if args["ensemble"] == True:
+        l = args["ensemble_num"]
 
-    if classifier == "knn":
-        model = MyKNN(**args["knn"])
-    elif classifier == "SVM":
-        model = MySVM()
-    else:
-        raise ValueError("Illegal scikit algorithm name.")
-    return model
+    cls = []
+    for _ in range(l):
+        if classifier == "knn":
+            cls.append(neighbors.KNeighborsClassifier(**args["knn"]))
+        elif classifier == "SVM":
+            cls.append(svm.LinearSVC())
+        else:
+            raise ValueError("Illegal scikit algorithm name.")
+    return cls
 
 
-def getSciModel(args: dict):
+def getSciModel(args: dict, num_classes: int):
 
-    model = getClassifier(args["algorithm"])
+    model = SciModel()
+    model.num_classes = num_classes
+    model.cls = getClassifier(args["algorithm"])
     model.setFeature(args["feature"])
+    model.process = args["process"]
     return model

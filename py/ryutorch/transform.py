@@ -39,32 +39,6 @@ def uniform_affine(trainData, anglerange=0, shearrange=0, scalerange=0):
     # return image
     pass
 
-# Define normal random affine transform
-
-
-def normal_affine(trainData, anglerange=0, shearrange=0, scalerange=0, nstd=1/3):
-
-    r = torch.normal(0, nstd, (4, len(trainData)))
-    r[r > 1] = 1
-    r[r < -1] = -1
-
-    r[0] = r[0]*anglerange
-    r[1] = r[1]*shearrange
-    r[2] = r[2]*shearrange
-    r[3] = r[3]*scalerange+1
-    r = r.tolist()
-
-    for i in range(len(trainData)):
-        # r = torch.rand(4, dtype=torch.float32).tolist()
-        # angle = (-anglerange)+(2*anglerange*r[0])
-        # xshear = (-shearrange)+(2*shearrange*r[1])
-        # yshear = (-shearrange)+(2*shearrange*r[2])
-        # scale = (1-scalerange)+(2*scalerange*r[3])
-        trainData[i] = F.affine(
-            trainData[i], angle=r[0][i], shear=(r[1][i], r[2][i]), scale=r[3][i], translate=(0, 0))
-    # return image
-    pass
-
 
 # Define uniform random perspective transform
 def uniform_perspective(trainData, distortion_scale=0.5, p=0.5):
@@ -99,6 +73,33 @@ def uniform_perspective(trainData, distortion_scale=0.5, p=0.5):
         trainData[i] = F.perspective(
             trainData[i], startpoints=startpoints, endpoints=endpoints)
         pass
+
+
+
+# abandoned normal distribution transformation 
+# Define normal random affine transform
+def normal_affine(trainData, anglerange=0, shearrange=0, scalerange=0, nstd=1/3):
+
+    r = torch.normal(0, nstd, (4, len(trainData)))
+    r[r > 1] = 1
+    r[r < -1] = -1
+
+    r[0] = r[0]*anglerange
+    r[1] = r[1]*shearrange
+    r[2] = r[2]*shearrange
+    r[3] = r[3]*scalerange+1
+    r = r.tolist()
+
+    for i in range(len(trainData)):
+        # r = torch.rand(4, dtype=torch.float32).tolist()
+        # angle = (-anglerange)+(2*anglerange*r[0])
+        # xshear = (-shearrange)+(2*shearrange*r[1])
+        # yshear = (-shearrange)+(2*shearrange*r[2])
+        # scale = (1-scalerange)+(2*scalerange*r[3])
+        trainData[i] = F.affine(
+            trainData[i], angle=r[0][i], shear=(r[1][i], r[2][i]), scale=r[3][i], translate=(0, 0))
+    # return image
+    pass
 
 
 # Define normal random perspective transform

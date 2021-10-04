@@ -1,32 +1,25 @@
 from collections import Counter
-
-import ryusci
-from PIL import Image
 import pathlib
-import matplotlib.pyplot as plt
-
-
-from skimage import io as skio
-from sklearn import neighbors
-
+import sys
 
 import numpy
 import pandas as pd
+from torch.utils.data.dataloader import T
 
-import sys
-from inspect import getsource
 
 from ryuutils import *
 import ryutrain
-# import ryutest
+import ryutest
 
 # ------------program global variable -----------
 timeMemo = ryutime.TimeMemo()
 log = dict()
 
 
-def run(config_path: str, test_sscd=False, loop=1):
+def run(config_path: str, loop=1,pretrained=False):
     config = ryuyaml.loadyaml(config_path)
+    ryuyaml.printyaml(config)
+    timestamp=timeMemo.getNowTimeStr()
 
     # ---------- global parameter -----
     paramGlobal = config["Global"]
@@ -44,92 +37,87 @@ def run(config_path: str, test_sscd=False, loop=1):
     paramTrain = config["Train"]
     sscdSet = ryudataset.getDataset(paramTrain["dataset"])
 
-    if test_sscd:
-        # Create sscd
-        timeMemo.reset()
 
-        # trainData, trainLabel = sscdSet.getFontDataBunch()
-        trainData, trainLabel = sscdSet.getTransformedDataSample(64)
-        print("Get example set cost: "+timeMemo.getTimeCostStr())
+    # get model
+    if pretrained:
+        model=ryutest.getModel(path=saveModelDir,name=paramGlobal["pretrained_model"])
+    else:
+        model = ryutrain.getModel(paramTrain, num_classes=sscdSet.num_cls)
+        model.setSSCD(sscdSet)
+        model.setValidSet(testSet)
 
-        trainLabelChar = [sscdSet.num_char_dict[i] for i in trainLabel]
-        grid = example.getExampleImageLabeledGridPIL(
-            trainData, trainLabelChar, 8, 4, size=(128, 128), shuffle=True)
-        grid.show()
-        grid.save("sscd_example.png")
-
-        sys.exit(0)
-
-    oneModel = True
-    # oneModel = False
-    model = ryutrain.getModel(paramTrain, num_cls=sscdSet.num_cls)
-    model.setCharDict(sscdSet.getLabelNum2CharDict())
-
-
-    # trainData, trainLabel = sscdSet.getTransformedDataBunch(bunch=10)
-    # trainData, trainLabel = sscdSet.getTransformedDataSample(100000)
+    highest_acc = 0
     # ---------------- One model -------------------
-    for _ in range(loop):
-        if oneModel:
-            # Create sscd
-            timeMemo.reset()
-            trainData, trainLabel = sscdSet.getTransformedDataSample(100000)
-            print("Create train set cost: "+timeMemo.getTimeCostStr())
-            # Fit Model
-            timeMemo.reset()
-            model.train(trainData, trainLabel)
-            print("Fit one set cost: "+timeMemo.getTimeCostStr())
+    for lp in range(loop):
+            
+        # Fit Model
+        timeMemo.reset()
+        model.train()
+        print("Train cost: "+timeMemo.getTimeCostStr())
 
-            timeMemo.reset()
+
+        # res = model.inference(
+        #     trainData, num_label=True, is_path=False)
+        # compair = res == trainLabel
+        # cnt = Counter(compair)
+        # corr = cnt[True]/sum(cnt.values())
+        # print("Correct predicted on Traindata: {}".format(corr))
+
+
+        timeMemo.reset()
+        # --------- Deep Model
+        if paramTrain["series"]=="torch":
+
             res = model.inference(
                 testSet.dataPath, num_label=False, is_path=True)
+            acc=testSet.evaluate(res)
+            print("Finally correct predicted: {}".format(acc))
+            print("Predict one set cost time: "+timeMemo.getTimeCostStr())
+            print(model.highestValidAccStr)
 
-            print("Correct predicted: {}".format(testSet.evaluate(res)))
+            error = testSet.getErrorCasesImageGrid(last=True)
+            error.save("error/%s_lasterror_%02.3f.png" % (timestamp,acc))
+            
+            error = testSet.getErrorCasesImageGrid(last=False)
+            error.save("error/%s_besterror_%02.3f.png" % (timestamp,model.highestValidAcc))
+        # ---------- Sci Model
+        elif paramTrain["series"]=="scikit":
+            res,res_s = model.inference( 
+                testSet.dataPath, num_label=False, is_path=True,pure_data=True)
+            res_p=numpy.zeros((len(model.feature),*res.shape))
+            acc_his=[[],[],[]]
+
+            res=res.argmax(axis=1)
+            res=model.getCharLabel(res)
+            acc=testSet.evaluate(res)
+            print("Correct predicted on entire ens : {}".format(acc))
+
+            t=len(model.cls)//len(model.feature)
+            for i in range(len(res_s)):
+
+                f_i=i//t
+
+                res=res_s[i].argmax(axis = 1)
+                res=model.getCharLabel(res)
+                acc=testSet.evaluate(res)
+                acc_his[f_i].append(acc)
+                print("Correct predicted on feature{} cls {}: {}".format(f_i+1,i+1,acc))
+
+                res_p[i//t]+= res_s[i]
+                res=res_p[i//t].argmax(axis = 1)
+                res=model.getCharLabel(res)
+                acc=testSet.evaluate(res)
+                print("Correct predicted on feature{} ens {}: {}".format(f_i+1,i+1,acc))
+
+            for i,acc in enumerate(acc_his):
+                print("Mean accuracy of single model train feature{} : {}".format(i+1,sum(acc)/len(acc)))
+
+
             print("Predict one set cost: "+timeMemo.getTimeCostStr())
 
-            error = testSet.getErrorCasesImageGrid()
-            error.save("last_error.png")
-            print("Save error prediction success.")
-            # model.save(saveModelDir)
-        # ------------------- Ensemble ----------------------
-        else:
-            T = 10
-
-            p_e = numpy.zeros((1400, sscdSet.num_cls))
-
-            timeMemo.reset()
-            for cls_i in range(T):
-                print("Start train {}".format(cls_i+1))
-
-                trainData, trainLabel = sscdSet.getTransformedDataSample(
-                    100000)
-                trainData = sscd.transform.pilSet2Numpy(trainData)
-
-                trainFeature = []
-                for image in trainData:
-                    _feature = hog(image)
-                    trainFeature.append(_feature)
-                trainFeature = numpy.array(trainFeature)
-
-                model = ryutrain.getModel(paramTrain)
-                model.setCharDict(sscdSet.getLabelNum2CharDict())
-                model.train(trainFeature, trainLabel)
-
-                res_p = model.inference_proba(testFe)
-                p_e += res_p
-
-                res_p = res_p.argmax(axis=1)
-                res_p = model.getCharLabel(res_p)
-
-                print("Classifier {}'s accuracy : {}".format(
-                    cls_i+1, testSet.evaluate(res_p)))
-
-                res_p_e = p_e.argmax(axis=1)
-                res_p_e = model.getCharLabel(res_p_e)
-                print("Ensembled classifier {}'s accuracy : {}".format(
-                    cls_i+1, testSet.evaluate(res_p_e)))
-                print("Now time cost {}".format(timeMemo.getTimeCostStr()))
-
-            error = testSet.getErrorCasesImageGrid()
-            error.save("last_error.png")
-            print("Save last error success.")
+        # if acc>highest_acc:
+        #     highest_acc=acc
+        #     error = testSet.getErrorCasesImageGrid()
+        #     error.save("error/error_%02.3f_%d.png" % (acc,lp+1))
+    ryuyaml.printyaml(config)
+    print(timestamp)
