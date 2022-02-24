@@ -1,9 +1,10 @@
 import torch
 import numpy
+from torch._C import device
 from torchvision.transforms import functional as F
 
 # Convert list of pil image to torch tensor. (Have Copy)
-def pil2Tensor(pilimage: list):
+def pil2Tensor(pilimage: list, gpu:bool=False):
     images = []
     for i in range(len(pilimage)):
         # handle PIL Image
@@ -13,7 +14,10 @@ def pil2Tensor(pilimage: list):
         # put it from HWC to CHW format
         img = img.permute((2, 0, 1))
         images.append(img)
-    t = torch.stack(images)
+    if gpu==True:
+        t = torch.stack(images).cuda()
+    else:
+        t = torch.stack(images)
     return t
 
 # None copy

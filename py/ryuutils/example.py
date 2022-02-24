@@ -10,7 +10,7 @@ import sscd
 def sampleUnique(dataset, num, sampleIndex=None, shuffle=False):
     k = min(len(dataset), num)
 
-    if shuffle==True:
+    if shuffle == True:
         if sampleIndex == None:
             sampleIndex = random.sample(range(len(dataset)), k)
         data = []
@@ -21,7 +21,7 @@ def sampleUnique(dataset, num, sampleIndex=None, shuffle=False):
 
 
 # Use PIL make a grid
-def makeImageGrid(images, num_col, margin=0, size=(0,0), background=(255, 255, 255)):
+def makeImageGrid(images, num_col, margin=0, size=(0, 0), background=(255, 255, 255)):
     """
     Input a list of PIL.images, return a grid PIL.image
     num_col : number of column in grid, row of grid will be calculated automatlly.
@@ -30,7 +30,7 @@ def makeImageGrid(images, num_col, margin=0, size=(0,0), background=(255, 255, 2
     if num == 0:
         raise ValueError("Empty image list.")
 
-    if size == (0,0):
+    if size == (0, 0):
         size = images[0].size
     num_row = ceil(num/num_col)
 
@@ -56,7 +56,7 @@ def makeImageGrid(images, num_col, margin=0, size=(0,0), background=(255, 255, 2
     return grid
 
 
-def makeImageGridLabeled(images, labels, num_col, margin=0, size=(0,0), background=(255, 255, 255)):
+def makeImageGridLabeled(images, labels, num_col, margin=0, size=(0, 0), background=(255, 255, 255)):
     """
     Input a list of PIL.images and list of labels, return a grid PIL.image.
     num_col : number of column in grid, row of grid will be calculated automatlly.
@@ -67,13 +67,14 @@ def makeImageGridLabeled(images, labels, num_col, margin=0, size=(0,0), backgrou
 
     num_row = ceil(num/num_col)
 
-    if size == (0,0):
+    if size == (0, 0):
         size = images[0].size
 
-    char_size =(min(size[0], size[1])) // 4
+    labelchar_size = (min(size[0], size[1])) // 6
+    labelheight = (labels[0].count("\n")+1)*labelchar_size
 
     grid_width = num_col*size[0]+margin*(num_col+1)
-    grid_height = num_row*(char_size+size[1])+margin*(num_row+1)
+    grid_height = num_row*(labelheight+size[1])+margin*(num_row+1)
 
     grid = Image.new("RGB", size=(grid_width, grid_height), color=background)
 
@@ -84,7 +85,8 @@ def makeImageGridLabeled(images, labels, num_col, margin=0, size=(0,0), backgrou
 
     for i in range(num):
         pasted = images[i].resize(size)
-        pasted_char = sscd.font.fontpathLabelImageGet(labels[i],size=(size[0],char_size),padding=1,background=255,fill=0)
+        pasted_char = sscd.font.fontpathLabelImageGet(labels[i], size=(
+            size[0], labelheight), padding=1, background=255, fill=0, fontpoint=labelchar_size)
 
         grid.paste(pasted, (x, y))
         grid.paste(pasted_char, (x, y+size[1]))
@@ -93,11 +95,11 @@ def makeImageGridLabeled(images, labels, num_col, margin=0, size=(0,0), backgrou
         if col_count == num_col:
             col_count = 0
             x = margin
-            y += size[1]+margin+char_size
+            y += size[1]+margin+labelheight
     return grid
 
 
-def getExampleImageGridPIL(dataset, num_col, num_row=None, shuffle=False, margin=0, size=(0,0), background="white"):
+def getExampleImageGridPIL(dataset, num_col, num_row=None, shuffle=False, margin=0, size=(0, 0), background="white"):
     """
     Random show some examples about a PIL image dataset.
     Using PIL.Image
@@ -110,7 +112,8 @@ def getExampleImageGridPIL(dataset, num_col, num_row=None, shuffle=False, margin
 
     return grid
 
-def getExampleImageLabeledGridPIL(dataset, labels, num_col, num_row=None, shuffle=False, margin=0, size=(0,0), background="white"):
+
+def getExampleImageLabeledGridPIL(dataset, labels, num_col, num_row=None, shuffle=False, margin=0, size=(0, 0), background="white"):
     """
     Random show some examples about a PIL image dataset.
     Using PIL.Imageshow
@@ -128,6 +131,7 @@ def getExampleImageLabeledGridPIL(dataset, labels, num_col, num_row=None, shuffl
         dataset, num, sampleIndex=sampleIndex, shuffle=shuffle)
     sampleLabels = sampleUnique(
         labels, num, sampleIndex=sampleIndex, shuffle=shuffle)
+
     grid = makeImageGridLabeled(
         sampleImages, sampleLabels, num_col, margin, size, background)
 

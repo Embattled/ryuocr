@@ -19,17 +19,18 @@ def fontpathCharImageGet(char, fontpath=default_font_path, size=64, padding=2, b
     image = Image.new('L', size=(size, size), color=background)
     draw = ImageDraw.Draw(image)
 
-    xy = (size/2, size/2)    
+    xy = (size/2, size/2)
     draw.text(xy, str(char), font=font, anchor="mm", fill=fill)
     return image
 
-def fontpathLabelImageGet(char, fontpath=default_font_path, size=(64,64), padding=2, background=0, fill=255):
+
+def fontpathLabelImageGet(char, fontpath=default_font_path, size=(64, 64), padding=2, background=0, fill=255, fontpoint=None):
     """ 
     Given ttf file path and number.
     Return a font number image.
     """
-
-    fontpoint = min(size[0],size[1])-padding*2
+    if fontpoint == None:
+        fontpoint = min(size[0], size[1])-padding*2
     font = ImageFont.truetype(fontpath, fontpoint)
 
     # image
@@ -40,6 +41,7 @@ def fontpathLabelImageGet(char, fontpath=default_font_path, size=(64,64), paddin
     draw.text(xy, str(char), font=font, anchor="mm", fill=fill)
 
     return image
+
 
 def fontCharImageShow(fontpath, character, size=64, padding=2, background=0, fill=255):
     """ 
@@ -89,7 +91,7 @@ def multiFontCharImageDictget(fonts: list, dicts: dict, size=64, padding=None, b
     images = []
     labels = []
 
-    if padding==None:
+    if padding == None:
         padding = size//32
 
     for font in fonts:
@@ -100,7 +102,7 @@ def multiFontCharImageDictget(fonts: list, dicts: dict, size=64, padding=None, b
     return images, labels
 
 
-def getExampleFontImage(char,anchor="mm",size=64, padding=2, background=0, fill=255):
+def getExampleFontImage(char, anchor="mm", size=64, padding=2, background=0, fill=255):
     fontpoint = size-padding*2
     font = ImageFont.truetype(default_font_path, fontpoint)
 
@@ -108,13 +110,14 @@ def getExampleFontImage(char,anchor="mm",size=64, padding=2, background=0, fill=
     image = Image.new('L', size=(size, size), color=background)
     draw = ImageDraw.Draw(image)
 
-    # xy = (padding,padding)    
-    xy = (size/2, size/2)    
+    # xy = (padding,padding)
+    xy = (size/2, size/2)
     draw.text(xy, str(char), font=font, anchor=anchor, fill=fill)
 
     return image
 
-if __name__ =="__main__":
-    
-    img=getExampleFontImage("国",anchor="mm",size=64,padding=2)
+
+if __name__ == "__main__":
+
+    img = getExampleFontImage("国", anchor="mm", size=64, padding=2)
     img.save("/home/eugene/workspace/ryuocr/fontImage.png")

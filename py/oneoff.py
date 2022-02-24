@@ -1,5 +1,7 @@
 from collections import Counter
-import pathlib
+from pathlib import Path
+
+import os
 import sys
 
 import numpy
@@ -11,113 +13,121 @@ from ryuutils import *
 import ryutrain
 import ryutest
 
-# ------------program global variable -----------
-timeMemo = ryutime.TimeMemo()
-log = dict()
 
-
-def run(config_path: str, loop=1,pretrained=False):
+def run(config_path: str, loop=1, validontestset: bool = True):
+    timeMemo = ryutime.TimeMemo()
     config = ryuyaml.loadyaml(config_path)
+
     ryuyaml.printyaml(config)
-    timestamp=timeMemo.getNowTimeStr()
 
     # ---------- global parameter -----
     paramGlobal = config["Global"]
-    # Model save path
-    saveModelDir = paramGlobal["save_model_dir"]
-    # Accuracy History Graph Save Path
-    saveResultDir = paramGlobal["save_result_dir"]
-
-    # ----------- Test Dataset-----------
-    paramTest = config["Test"]
-    testSet = ryudataset.getDataset(paramTest["dataset"])
-    # testSet.readDataToMem()
+    # save path
+    saveResultDir = os.path.abspath(paramGlobal["save_result_dir"])
 
     # ------------ Train Dataset------------
     paramTrain = config["Train"]
     sscdSet = ryudataset.getDataset(paramTrain["dataset"])
 
+    # ----------- Test Dataset-----------
+    paramTest = config["Test"]
+    testSet = ryudataset.getDataset(paramTest["dataset"])
 
+    # testSet.readDataToMem()
+    print("{}/{} data from {} use for evaluation.".format(len(testSet.dataLabel),
+                                                          len(testSet.dataLabelOld), testSet.name))
     # get model
-    if pretrained:
-        model=ryutest.getModel(path=saveModelDir,name=paramGlobal["pretrained_model"])
-    else:
-        model = ryutrain.getModel(paramTrain, num_classes=sscdSet.num_cls)
-        model.setSSCD(sscdSet)
+    model = ryutrain.getModel(paramTrain, num_classes=sscdSet.num_cls)
+    model.setSSCD(sscdSet)
+    if validontestset:
         model.setValidSet(testSet)
 
-    highest_acc = 0
     # ---------------- One model -------------------
     for lp in range(loop):
-            
-        # Fit Model
+
+        # prepare timestamp
         timeMemo.reset()
+        timestamp = timeMemo.getNowTimeStr()
+        savePath = os.path.join(saveResultDir, timestamp+paramTrain["series"])
+
+        # Training Model
         model.train()
         print("Train cost: "+timeMemo.getTimeCostStr())
-
-
-        # res = model.inference(
-        #     trainData, num_label=True, is_path=False)
-        # compair = res == trainLabel
-        # cnt = Counter(compair)
-        # corr = cnt[True]/sum(cnt.values())
-        # print("Correct predicted on Traindata: {}".format(corr))
-
-
         timeMemo.reset()
-        # --------- Deep Model
-        if paramTrain["series"]=="torch":
 
-            res = model.inference(
-                testSet.dataPath, num_label=False, is_path=True)
-            acc=testSet.evaluate(res)
-            print("Finally correct predicted: {}".format(acc))
+        os.makedirs(savePath)
+        # --------- Deep Model
+        if paramTrain["series"] == "torch":
+
+            acck, acc1 = ryutest.evaluate(model, testSet, topk=2)
             print("Predict one set cost time: "+timeMemo.getTimeCostStr())
+
+            print("Finally top1 accuracy: {}".format(acc1))
+            print("Finally top2 accuracy: {}".format(acck))
+
             print(model.highestValidAccStr)
 
             error = testSet.getErrorCasesImageGrid(last=True)
-            error.save("error/%s_lasterror_%02.3f.png" % (timestamp,acc))
-            
+            error.save(os.path.join(savePath, "lasterror_%02.3f.png" % acc1))
+
             error = testSet.getErrorCasesImageGrid(last=False)
-            error.save("error/%s_besterror_%02.3f.png" % (timestamp,model.highestValidAcc))
+            error.save(os.path.join(savePath, "besterror_%02.3f.png" %
+                                    (model.highestValidAcc)))
+
         # ---------- Sci Model
-        elif paramTrain["series"]=="scikit":
-            res,res_s = model.inference( 
-                testSet.dataPath, num_label=False, is_path=True,pure_data=True)
-            res_p=numpy.zeros((len(model.feature),*res.shape))
-            acc_his=[[],[],[]]
+        elif paramTrain["series"] == "scikit":
+            res, res_s = model.inference(
+                testSet.dataPath, num_label=False, is_path=True, pure_data=True)
+            res_p = numpy.zeros((len(model.feature), *res.shape))
+            acc_his = [[], [], []]
 
-            res=res.argmax(axis=1)
-            res=model.getCharLabel(res)
-            acc=testSet.evaluate(res)
-            print("Correct predicted on entire ens : {}".format(acc))
+            res = res.argmax(axis=1)
+            res = model.getCharLabel(res)
+            acc1, acck = testSet.evaluate(res)
 
-            t=len(model.cls)//len(model.feature)
+            # open log file
+            f = open(os.path.join(savePath, "accuracy.txt"), "w")
+            print("Correct predicted on entire ens : {}".format(acc1))
+
+            f.write("Correct predicted on entire ens : {}\n".format(acc1))
+
+            t = len(model.cls)//len(model.feature)
             for i in range(len(res_s)):
 
-                f_i=i//t
+                f_i = i//t
 
-                res=res_s[i].argmax(axis = 1)
-                res=model.getCharLabel(res)
-                acc=testSet.evaluate(res)
-                acc_his[f_i].append(acc)
-                print("Correct predicted on feature{} cls {}: {}".format(f_i+1,i+1,acc))
+                # single
+                res = res_s[i].argmax(axis=1)
+                res = model.getCharLabel(res)
+                acc1, acck = testSet.evaluate(res)
 
-                res_p[i//t]+= res_s[i]
-                res=res_p[i//t].argmax(axis = 1)
-                res=model.getCharLabel(res)
-                acc=testSet.evaluate(res)
-                print("Correct predicted on feature{} ens {}: {}".format(f_i+1,i+1,acc))
+                acc_his[f_i].append(acc1)
+                f.write("Correct predicted on feature{} cls {}: {}\n".format(
+                    f_i+1, i+1, acc1))
 
-            for i,acc in enumerate(acc_his):
-                print("Mean accuracy of single model train feature{} : {}".format(i+1,sum(acc)/len(acc)))
+                # ensemble
+                res_p[f_i] += res_s[i]
+                res = res_p[f_i].argmax(axis=1)
+                res = model.getCharLabel(res)
+                acc1, acck = testSet.evaluate(res)
+                f.write("Correct predicted on feature{} ens {}: {}\n".format(
+                    f_i+1, i+1, acc1))
 
+            for i, acc_list in enumerate(acc_his):
+                f.write("Mean accuracy of single model train feature{} : {}\n".format(
+                    i+1, sum(acc_list)/len(acc_list)))
 
-            print("Predict one set cost: "+timeMemo.getTimeCostStr())
+            f.write("Predict one set cost: "+timeMemo.getTimeCostStr()+"\n")
 
-        # if acc>highest_acc:
-        #     highest_acc=acc
-        #     error = testSet.getErrorCasesImageGrid()
-        #     error.save("error/error_%02.3f_%d.png" % (acc,lp+1))
+            f.close()
+        # save model
+
+        ryuyaml.saveyaml(config, os.path.join(savePath, "config.yml"))
+        model.save(savePath, log=True)
+
     ryuyaml.printyaml(config)
     print(timestamp)
+
+
+if __name__ == "__main__":
+    pass

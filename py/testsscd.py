@@ -1,4 +1,3 @@
-
 from ryuutils import *
 
 
@@ -22,4 +21,10 @@ def run(config_path, size, sscdshuffle, withlabel, sscdmargin, sscdrow, sscdcol,
     else:
         grid = example.getExampleImageGridPIL(
             trainData, sscdcol, sscdrow, size=(size, size), margin=sscdmargin)
+    
+    # import numpy,sys
+    # from PIL import ImageOps
+    # numpy.set_printoptions(threshold=sys.maxsize)
+    # print(numpy.array(grid))
+    # grid=grid.convert('L')
     grid.save(sscdpath)

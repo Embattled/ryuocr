@@ -101,6 +101,8 @@ class SciModel:
 
         p_s = numpy.array(p_s)
         return p_e, p_s
+    def save(self,savepath,**kwargs):
+        pass
 
 
 def getClassifier(args: dict):

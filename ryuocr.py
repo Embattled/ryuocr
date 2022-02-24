@@ -12,7 +12,7 @@ def parse_args(mMain=True, add_help=True):
         parser = argparse.ArgumentParser(
             add_help=add_help, description=description)
 
-        # global
+        # global, mode select
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument("--train", action="store_true", help="Train mode.")
         mode.add_argument("--test", action="store_true", help="Test mode.")
@@ -29,26 +29,36 @@ def parse_args(mMain=True, add_help=True):
         parser.add_argument("-l", "--loop", type=int,
                             default=1, help="Run multiple times.")
 
-        # model
-        parser.add_argument("-p", "--pretrained", action="store_true", default=False,
-                            help="Whether use pretrained model, need write path in config file.")
+        # params for oneoff executation
+        par_oneoff = parser.add_argument_group(
+            "oneoff", "Parameter for oneoff mode")
+        par_oneoff.add_argument("--valid_on_testset", action="store_true",
+                                help="Using dataset in test group as validation dataset in training")
+
+        # params for test
+        par_test = parser.add_argument_group("test", "Parameter for test mode")
+        par_test.add_argument("--model", type=str, default="",
+                              help="Model used to execute evaluate, if none, using model in config file.")
+        par_test.add_argument("--best", action="store_true", help="Whether using best valid accuracy model,'model_best.pt'")
 
         # params for test sscd
-        par_testsscd=parser.add_argument_group("sscd","Parameter for test sscd.")
+        par_testsscd = parser.add_argument_group(
+            "sscd", "Parameter for test sscd.")
+
         par_testsscd.add_argument("--size", type=int, default=128,
-                            help="resolution of one sscd example.")
+                                  help="resolution of one sscd example.")
         par_testsscd.add_argument("--sscdmargin", type=int, default=0,
-                            help="margin between sscd examples.")
+                                  help="margin between sscd examples.")
         par_testsscd.add_argument(
             "--sscdshuffle", action="store_true", help="shuffle test sscd")
         par_testsscd.add_argument("--withlabel", action="store_true",
-                            default="whether sscd examples with their labels")
+                                  default="whether sscd examples with their labels")
         par_testsscd.add_argument("--sscdcol", type=int, default=8,
-                            help="columns of sscd examples")
+                                  help="columns of sscd examples")
         par_testsscd.add_argument("--sscdrow", type=int, default=4,
-                            help="rows of sscd examples")
+                                  help="rows of sscd examples")
         par_testsscd.add_argument(
-            "--sscdpath", type=str, default="sscd_example.png", help="path of sscd examples")
+            "--sscdpath", type=str, default="sscd_example.bmp", help="path of sscd examples")
         """
         # params for prediction engine
         parser.add_argument("--use_gpu", type=str2bool, default=True)
@@ -113,13 +123,13 @@ def main():
 
     if args.oneoff:
         from py import oneoff
-        oneoff.run(config_path, args.loop, pretrained=args.pretrained)
+        oneoff.run(config_path, args.loop, args.valid_on_testset)
     elif args.train:
-        from py import train
-        train.run(config_path)
+        from py import ryutrain
+        ryutrain.run(config_path)
     elif args.test:
-        from py import test
-        test.run(config_path)
+        from py import ryutest
+        ryutest.run(config_path,args.model,best=args.best)
     elif args.testsscd:
         from py import testsscd
         testsscd.run(config_path, **vars(args))

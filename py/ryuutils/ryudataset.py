@@ -16,13 +16,173 @@ import sscd
 import example
 
 
+# set seed
+random.seed(1)
+
+
 class RyuDataSet():
     def __init__(self):
-        pass
+        # dataset type
+        self.dataInMem = None
+        self.dataPil = None
+        self.dataPath = None
+        self.dataLabel = None
+
+        # initialize some property
+        self.lastRes = None
+        self.bestRes = None
+        self.bestAcc = -1.0
+
+    def __gettop1(self, predict):
+        if len(predict.shape) == 1:
+            return predict
+        elif len(predict.shape) == 2:
+            return predict[:, 0]
+        else:
+            raise ValueError(
+                "Illegal shape of inference result {}".format(predict.shape))
+
+    def __readDataToMem(self):
+        if self.dataInMem == True and self.dataPil != None:
+            return
+
+        if self.dataPath == None:
+            raise ValueError("data path is null.")
+
+        self.dataPil = []
+        for path in self.dataPath:
+            _img = Image.open(path)
+            _img.load()
+            self.dataPil.append(_img)
+        self.dataInMem = True
+
+    def evaluate(self, predict, topk=1,revise=False):
+        """
+        Input array of predict label, return accuracy and save result in instant.
+        """
+        self.lastRes = predict
+
+        if len(predict.shape) == 1:
+            if revise==True:
+                sscd.dict.reviseJapanDict(predict)
+            top1compair = self.dataLabel == predict
+        elif len(predict.shape) == 2:
+            predictTop1=predict[:,0]
+            if revise==True:
+                sscd.dict.reviseJapanDict(predictTop1)
+            top1compair = predictTop1 == self.dataLabel
+
+            if predict.shape[1] < topk:
+                raise ValueError(
+                    "Can't run top-{} on inference result has shape {}".format(topk, predict.shape))
+            if topk > 1:
+                topkcompair = [self.dataLabel[i] in predict[i][:topk]
+                               for i in range(len(predict))]
+        else:
+            raise ValueError("Predict must be a 1 or 2 dimension array.")
+        # top 1
+        top1cnt = Counter(top1compair)
+        top1acc = top1cnt[True]/sum(top1cnt.values())
+        if top1acc > self.bestAcc:
+            self.bestAcc = top1acc
+            self.bestRes = predict
+
+        if topk == 1:
+            return top1acc, top1acc
+
+        # topk
+        topkcnt = Counter(topkcompair)
+        topkacc = topkcnt[True]/sum(topkcnt.values())
+        return topkacc, top1acc
+
+    def getErrorCasesImageGrid(self, num=0, format="T:{}\nP:{}", predict=None, size=(128, 128), last=False):
+        if predict == None:
+            if self.lastRes is None:
+                raise ValueError("There has been no evaluation yet.")
+            elif last == True:
+                predict = self.lastRes
+            else:
+                predict = self.bestRes
+
+        errorSet = []
+        errorLabel = []
+        self.__readDataToMem()
+
+        if len(predict.shape) == 1:
+            for i in range(len(self.dataLabel)):
+                if self.dataLabel[i] != predict[i]:
+                    errorSet.append(self.dataPil[i])
+
+                    t = self.dataLabel[i]
+                    f = predict[i]
+                    errorLabel.append(format.format(t, f))
+        else:
+            predict_top1 = self.__gettop1(predict)
+            k = min(3, predict.shape[1])
+
+            for i in range(len(self.dataLabel)):
+                if self.dataLabel[i] != predict_top1[i]:
+                    errorSet.append(self.dataPil[i])
+                    t = self.dataLabel[i]
+
+                    topk = ["["+pred+"]" if pred ==
+                            t else pred for pred in predict[i][:k]]
+
+                    f = ''.join(topk)
+                    errorLabel.append(format.format(t, f))
+
+        if len(errorSet) == 0:
+            print("There are no error samples.")
+            return
+        if num == 0:
+            num = len(errorSet)
+
+        return example.makeImageGridLabeled(errorSet, errorLabel, 10, size=size)
+
+    def getAllCasesImageGrid(self, num=0, format="T:{}\nP:{}", predict=None, size=(128, 128), last=False):
+        if predict == None:
+            if self.lastRes is None:
+                raise ValueError("There has been no evaluation yet.")
+            elif last == True:
+                predict = self.lastRes
+            else:
+                predict = self.bestRes
+
+        label = []
+        self.__readDataToMem()
+
+        if len(predict.shape) == 1:
+            for i in range(len(self.dataLabel)):
+
+                t = self.dataLabel[i]
+                f = predict[i]
+                label.append(format.format(t, f))
+        else:
+            predict_top1 = self.__gettop1(predict)
+            k = min(3, predict.shape[1])
+
+            for i in range(len(self.dataLabel)):
+                if self.dataLabel[i] != predict_top1[i]:
+
+                    t = self.dataLabel[i]
+
+                    topk = ["["+pred+"]" if pred ==
+                            t else pred for pred in predict[i][:k]]
+
+                    f = ''.join(topk)
+                    label.append(format.format(t, f))
+
+        if num == 0:
+            num = len(self.dataPil)
+
+        return example.makeImageGridLabeled(self.dataPil, label, 10, size=size)
 
 
 class EvalDataSet(RyuDataSet):
-    def __init__(self, dir, name=None, revise=False):
+    def __init__(self, dir, name=None, dictpath=None):
+        """
+        dir: Index file of images
+        """
         super().__init__()
 
         self.name = name
@@ -32,97 +192,31 @@ class EvalDataSet(RyuDataSet):
         data["path"] = os.path.dirname(dir)+'/'+data["path"]
 
         self.dataPath = list(data["path"].values)
+        self.dataPathOld = list(data["path"].values)
+
         self.dataLabel = numpy.array(data["label"])
+        self.dataLabelOld = numpy.array(data["label"])
 
-        if revise:
-            sscd.dict.reviseJapanDict(self.dataLabel)
+        self.dataInMem = False
 
-        # initialize some property
-        self.last_res = None
-        self.best_res = None
-        self.best_acc = 0.0
+        # dict and revise
+        if dictpath != None:
+            self.num_cls, self.num_char_dict, self.char_num_dict = sscd.dict.readDict(
+                dictpath)
+            self.removeIllegalData(list(self.char_num_dict.keys()))
 
-    def readDataToMem(self):
-        self.pilData = []
-        for path in self.dataPath:
-            _img = Image.open(path)
-            _img.load()
-            self.pilData.append(_img)
+    def removeIllegalData(self, dictionary: list):
 
-    def evaluate(self, predict):
-        """
-        Input array of predict label, return accuracy and save result in instant.
-        """
-        self.last_res = predict
-        compair = predict == self.dataLabel
-        cnt = Counter(compair)
-
-        acc=cnt[True]/sum(cnt.values())
-        if acc>self.best_acc:
-            self.best_acc=acc
-            self.best_res=predict
-        return acc
-
-    def getErrorCasesImageGrid(self, num=0, format="T:{} F:{}", predict=None, size=(128, 128),last=False):
-        if predict == None:
-            if self.last_res is None:
-                raise ValueError("There has been no evaluation yet.")
-            elif last==True:
-                predict=self.last_res
-            else:
-                predict=self.best_res
-        
-        errorSet = []
-        errorLabel = []
-        for i in range(len(self.dataLabel)):
-            if self.dataLabel[i] != predict[i]:
-                _img = Image.open(self.dataPath[i])
-                _img.load()
-                errorSet.append(_img)
-
-                t = self.dataLabel[i]
-                f = predict[i]
-                errorLabel.append(format.format(t, f))
-
-        if len(errorSet) == 0:
-            print("There are no error samples.")
-        if num == 0:
-            num = len(errorSet)
-
-        return example.getExampleImageLabeledGridPIL(
-            errorSet, errorLabel, 8, num//8, size=size)
-
-    def getAllCasesImageGrid(self, num=0, format="T:{} F:{}", predict=None, size=(128, 128),last=False):
-        if predict == None:
-            if self.last_res is None:
-                raise ValueError("There has been no evaluation yet.")
-            elif last==True:
-                predict=self.last_res
-            else:
-                predict=self.best_res
-
-        allset = []
-        label = []
-        for i in range(len(self.dataLabel)):
-            _img = Image.open(self.dataPath[i])
-            _img.load()
-            allset.append(_img)
-
-            if self.dataLabel[i] != predict[i]:
-
-                t = self.dataLabel[i]
-                f = predict[i]
-                label.append(format.format(t, f))
-            else:
-                label.append(self.dataLabel[i])
-
-        if num == 0:
-            num = len(allset)
-        return example.getExampleImageLabeledGridPIL(
-            allset, label, 8, num//8, size=size)
+        self.dataPath.clear()
+        newLabel = []
+        for i in range(len(self.dataPathOld)):
+            if self.dataLabelOld[i] in dictionary:
+                self.dataPath.append(self.dataPathOld[i])
+                newLabel.append(self.dataLabelOld[i])
+        self.dataLabel = numpy.array(newLabel)
 
 
-class SSCDGenerator():
+class SSCDGenerator(RyuDataSet):
     def __init__(self, ttfpaths,  fontsize, dictpara, transform, padding=None):
 
         self.num_cls, self.num_char_dict, self.char_num_dict = sscd.dict.readDict(
@@ -153,15 +247,15 @@ class SSCDGenerator():
             label.extend(self.fontLabelNum)
         return data, label
 
-    def getFontDataSample(self, num: int,shuffle):
+    def getFontDataSample(self, num: int, shuffle=True):
         data = []
         label = []
-        if shuffle==True:
+        if shuffle == True:
             smp = random.choices(range(len(self.fontData)), k=num)
         else:
-            smp=[]
-            while len(smp)<num:
-                k = min(len(self.fontData),num-len(smp))
+            smp = []
+            while len(smp) < num:
+                k = min(len(self.fontData), num-len(smp))
                 smp.extend(range(len(self.fontData))[0:k])
         for i in smp:
             data.append(self.fontData[i].copy())
@@ -173,8 +267,8 @@ class SSCDGenerator():
         self.transform_function(data)
         return data, label
 
-    def getTransformedDataSample(self, num: int,shuffle=True):
-        data, label = self.getFontDataSample(num,shuffle)
+    def getTransformedDataSample(self, num: int, shuffle=True):
+        data, label = self.getFontDataSample(num, shuffle)
         self.transform_function(data)
         return data, label
 
@@ -194,6 +288,12 @@ class SSCDGenerator():
         else:
             raise ValueError("Invalid sscd type: {}".format(type))
         return trainData, trainLabel
+
+    def becomeValidSet(self, num: int):
+        self.dataPil, self.dataLabel = self.getFontDataSample(num, True)
+        self.transform_function(self.dataPil)
+
+        self.dataInMem = True
 
 
 def getSSCD(profile: dict):

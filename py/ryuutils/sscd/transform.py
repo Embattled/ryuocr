@@ -4,14 +4,14 @@ import PIL
 from math import floor, sin, cos, tan, pi
 from PIL import ImageOps, Image, ImageMorph, ImageFilter
 from skimage import util as skiutil
-
+from skimage import morphology as skimorph
 
 rng = numpy.random.default_rng(1)
 
 numpy.random.get_state()
 
 # --------------------
-# PILSet to numpy array (Copy)
+# PILSet to numpy array (copy)
 
 
 def pilSet2Numpy(images):
@@ -23,6 +23,8 @@ def pilSet2Numpy(images):
     npimages = numpy.asarray(npimages)
     return npimages
 
+# Non-copy
+
 
 def numpySet2PilSet(npimages):
     images = []
@@ -33,6 +35,50 @@ def numpySet2PilSet(npimages):
 
 # ------------------- Transform ------------- function
 # p means the probability of data will be transform.
+
+
+color_lib_horie = [
+    [255, 218, 185],
+    [255, 250, 205],
+    [230, 230, 250],
+    [255, 228, 225],
+    [47, 79, 79],
+    [105, 105, 105],
+    [0, 0, 205],
+    [0, 206, 209],
+    [0, 100, 0],
+    [0, 255, 0],
+    [34, 139, 34],
+    [255, 255, 0],
+    [255, 215, 0],
+    [205, 92, 92],
+    [255, 0, 0],
+    [255, 182, 193],
+    [160, 32, 240],
+    [0, 0, 255],
+    [25, 25, 112],
+    [135, 206, 235]
+]
+
+
+def randomColorizeSet_library(images, inplace=True):
+    newImages = []
+    if inplace:
+        for i in range(len(images)):
+            index = rng.choice(range(20), size=2, replace=False)
+            c = [color_lib_horie[index[0]], color_lib_horie[index[1]]]
+
+            images[i] = ImageOps.colorize(
+                images[i], black=c[0], white=c[1])
+        newImages = images
+    else:
+        for i in range(len(images)):
+            index = rng.choice(range(20), size=2, replace=False)
+            c = [color_lib_horie[index[0]], color_lib_horie[index[1]]]
+
+            newImages.append(ImageOps.colorize(
+                images[i], black=c[0], white=c[1]))
+    return newImages
 
 
 def randomColorizeSet(images, gap=50, inplace=True):
@@ -143,8 +189,8 @@ def affine_autoscale(image, rotation=0, shear: tuple = (0, 0), translation: tupl
 
     # scale
     p0 = (affine_mat[0][2], affine_mat[1][2])
-    p1 = (affine_mat[0][0]+affine_mat[0][2], affine_mat[1, 0]+affine_mat[1][2])
-    p2 = (affine_mat[0][1]+affine_mat[0][2], affine_mat[1, 1]+affine_mat[1][2])
+    p1 = (affine_mat[0][0]+affine_mat[0][2], affine_mat[1][0]+affine_mat[1][2])
+    p2 = (affine_mat[0][1]+affine_mat[0][2], affine_mat[1][1]+affine_mat[1][2])
     p3 = (numpy.sum(affine_mat[0]), numpy.sum(affine_mat[1]))
 
     scalex = max(abs(p3[0]-p0[0]), abs(p2[0]-p1[0]))
@@ -152,9 +198,6 @@ def affine_autoscale(image, rotation=0, shear: tuple = (0, 0), translation: tupl
 
     affine_mat = numpy.dot(numpy.array(
         [[scalex, 0, 0], [0, scaley, 0], [0, 0, 1]]), affine_mat)
-
-    # affine_mat[0][0] = affine_mat[0][0]*scalex
-    # affine_mat[1][1] = affine_mat[1][1]*scaley
 
     # # move back
     affine_mat = numpy.dot(numpy.array([[1, 0, cx+translation[0]], [0, 1, cy+translation[1]], [
@@ -185,8 +228,10 @@ def uniformAffine(images, rotation=0, shear=(0, 0), scale=(1, 1), p=0.5, autosca
     target_shear = numpy.zeros((n, 2))
     if isinstance(shear, list):
         if len(shear) == 2:
-            target_shear = numpy.hstack((rng.uniform(low=-shear[0], high=shear[0], size=(
-                n, 1)), rng.uniform(low=-shear[1], high=shear[1], size=(n, 1))))
+            n_shear=rng.uniform(low=shear[0],high=shear[1],size=(n,1))
+            shear_x=rng.uniform(low=0,high=1,size=(n,1))*n_shear
+
+            target_shear = numpy.hstack([shear_x,(n_shear-shear_x)] )
         elif len(shear) == 4:
             target_shear = numpy.hstack((rng.uniform(low=shear[0], high=shear[1], size=(
                 n, 1)), rng.uniform(low=shear[2], high=shear[3], size=(n, 1))))
@@ -223,6 +268,65 @@ def uniformAffine(images, rotation=0, shear=(0, 0), scale=(1, 1), p=0.5, autosca
                     images[i], target_rotation[i], shear=target_shear[i]), scale=target_scale[i])
     return new_images
 
+# def uniformAffine_vanilla(images, rotation=0, shear=(0, 0), scale=(1, 1), p=0.5, autoscale=True, inplace=True):
+#     """
+#     rotation : int , rotate -x ~ x degree randomly
+#     shear : (x,y) , shear horizontal -x~x degree, vertical -y~y degree.
+#     scale : (low,high) scale range for both scalex and scaley.
+#     """
+#     n = len(images)
+#     p_trans = rng.uniform(low=0, high=1, size=n)
+
+#     target_rotation = numpy.zeros(n)
+#     if isinstance(rotation, int):
+#         target_rotation = rng.uniform(
+#             low=-rotation, high=rotation, size=n)
+#     elif isinstance(rotation, list) and len(rotation) == 2:
+#         target_rotation = rng.uniform(
+#             low=rotation[0], high=rotation[1], size=n)
+#     else:
+#         raise ValueError("rotation of affine must int or list have 2 values")
+
+#     target_shear = numpy.zeros((n, 2))
+#     if isinstance(shear, list):
+#         if len(shear) == 2:
+#             target_shear = numpy.hstack((rng.uniform(low=-shear[0], high=shear[0], size=(
+#                 n, 1)), rng.uniform(low=-shear[1], high=shear[1], size=(n, 1))))
+#         elif len(shear) == 4:
+#             target_shear = numpy.hstack((rng.uniform(low=shear[0], high=shear[1], size=(
+#                 n, 1)), rng.uniform(low=shear[2], high=shear[3], size=(n, 1))))
+#         else:
+#             raise ValueError(
+#                 "shear of affine must is a list have 2 or 4 values")
+
+#     target_scale = numpy.ones((n, 2))
+#     if scale != (1, 1):
+#         target_scale = rng.uniform(low=scale[0], high=scale[1], size=(n, 2))
+
+#     new_images = []
+#     if inplace:
+#         for i in range(n):
+#             if p_trans[i] >= p:
+#                 continue
+#             if autoscale:
+#                 images[i] = affine_autoscale(images[i], target_rotation[i],
+#                                              shear=target_shear[i])
+#             else:
+#                 images[i] = affine(images[i], target_rotation[i],
+#                                    shear=target_shear[i], scale=target_scale[i])
+#         new_images = images
+#     else:
+#         for i in range(n):
+#             if p_trans[i] >= p:
+#                 new_images.append(images[i])
+#                 continue
+#             if autoscale:
+#                 new_images.append(affine_autoscale(images[i], target_rotation[i],
+#                                                    shear=target_shear[i]))
+#             else:
+#                 new_images.append(affine(
+#                     images[i], target_rotation[i], shear=target_shear[i]), scale=target_scale[i])
+#     return new_images
 
 def affineDirect(image, data: tuple, resample=PIL.Image.BILINEAR, size=None, center=True):
     """
@@ -364,8 +468,8 @@ def perspectiveDirect(image, target_point, size=None, resample=PIL.Image.BILINEA
     pb = []
     pb.append([tr[0], tr[1]])
     pb.append([h+tr[2], tr[3]])
-    pb.append([h+tr[0], w+tr[1]])
-    pb.append([tr[0], w+tr[1]])
+    pb.append([h+tr[4], w+tr[5]])
+    pb.append([tr[6], w+tr[7]])
 
     coeffs = find_coeffs(pa, pb)
     return image.transform(image.size, PIL.Image.PERSPECTIVE, coeffs, resample=resample)
@@ -373,7 +477,8 @@ def perspectiveDirect(image, target_point, size=None, resample=PIL.Image.BILINEA
 
 def uniformPerspectiveDirect(images, scale=(-1, 1), p=0.5, inplace=True):
     n = len(images)
-    target_point = rng.interger(low=scale[0], high=scale[1], size=(n, 8))
+    target_point = rng.uniform(low=scale[0], high=scale[1], size=(n, 8))
+
     p_trans = rng.uniform(low=0, high=1, size=n)
 
     new_images = []
@@ -381,14 +486,14 @@ def uniformPerspectiveDirect(images, scale=(-1, 1), p=0.5, inplace=True):
         for i in range(n):
             if p_trans[i] >= p:
                 continue
-            images[i] = perspective(images[i], target_point[i])
+            images[i] = perspectiveDirect(images[i], target_point[i])
         new_images = images
     else:
         for i in range(n):
             if p_trans[i] >= p:
                 new_images.append(images[i])
                 continue
-            new_images.append(perspective(images[i], target_point[i]))
+            new_images.append(perspectiveDirect(images[i], target_point[i]))
     return new_images
 
 
@@ -404,14 +509,21 @@ known_patterns = {
         "4:(.0. .1. ...)->1",
         "4:(01. .1. ...)->1",
     ],
-    "erosion4l": ["N:(.1. .1. .0.)->0"],
-    "erosion8l": ["4:(.1. .1. .0.)->0", "4:(1.. .1. ..0)->0"]
+    # "none":["1:(... .1. ...)->1"],
+    "none": [],
+    "pushU": ["N:(.1. .1. .0.)->0"],
+    "pushD": ["N:(.0. .1. .1.)->0"],
+    "erosionhl": ["1:(.1. .1. .0.)->0", "1:(.0. .0. .1.)->1"],
+    # "erosionhl": ["M:(... 110 ...)->0"],
+    "erosion4l": ["4:(.1. .1. .0.)->0"],
+    "erosion8l": ["4:(.1. .1. .0.)->0", "4:(1.. .1. ..0)->0"],
+    "notrans": "no"
 }
 
 
 def morphology(image, **kwargs):
     morph = ImageMorph.MorphOp(**kwargs)
-    _, img = morph.apply(image)
+    ch_pix, img = morph.apply(image)
     return img
 
 
@@ -426,16 +538,72 @@ def randomMorph(images, patterns: list, p=0.3, inplace=True):
             if p_trans[i] >= p:
                 continue
             pt = known_patterns[patterns[target_pattern[i]]]
-            images[i] = morphology(
-                images[i], patterns=pt)
+            if pt == "no":
+                pass
+            else:
+                images[i] = morphology(
+                    images[i], patterns=pt)
         new_images = images
     else:
         for i in range(n):
             if p_trans[i] >= p:
-                new_images.append(image)
+                new_images.append(images[i])
                 continue
-            image = morphology(images[i], op_name=patterns[target_pattern[i]])
+            pt = known_patterns[patterns[target_pattern[i]]]
+            if pt == "no":
+                new_images.append(images[i])
+            else:
+                image = morphology(images[i], patterns=pt)
+                new_images.append(image)
+    return new_images
+
+
+def morphology_skifuncget(pattern: str, **kwargs):
+    if pattern == "none":
+        def morph(image):
+            return image
+    elif pattern == "dilation4":
+        def morph(image):
+            return skimorph.dilation(image, skimorph.disk(1))
+    elif pattern == "dilation8":
+        def morph(image):
+            return skimorph.dilation(image, skimorph.square(3))
+    elif pattern == "erosion4":
+        def morph(image):
+            return skimorph.erosion(image, skimorph.disk(1))
+    elif pattern == "erosion8":
+        def morph(image):
+            return skimorph.erosion(image, skimorph.square(3))
+    else:
+        raise ValueError("Illegal skimorph pattern: "+pattern)
+    return morph
+
+
+def randomMorph_ski(images, patterns: list, p=0.3, inplace=True):
+    n = len(images)
+    target_pattern = rng.integers(low=0, high=len(patterns), size=(n))
+    p_trans = rng.uniform(low=0, high=1, size=n)
+
+    new_images = []
+    if inplace:
+        for i in range(n):
+            if p_trans[i] >= p:
+                continue
+            pt = patterns[target_pattern[i]]
+            func = morphology_skifuncget(pattern=pt)
+            images_np = func(numpy.asarray(images[i]))
+            images[i] = PIL.Image.fromarray(images_np)
+        new_images = images
+    else:
+        for i in range(n):
+            if p_trans[i] >= p:
+                new_images.append(numpy.asarray(images[i]))
+                continue
+            image = morphology_skifuncget(
+                pattern=patterns[target_pattern[i]])(numpy.asarray(images[i]))
             new_images.append(image)
+        new_images = numpySet2PilSet(numpy.array(new_images))
+
     return new_images
 
 
@@ -538,8 +706,19 @@ def sscdCreate(originData, originLabel, transfunction, epoch=1):
 
 
 def _getTransform(name, **para: dict):
+    # Color
+    if name == "color_lib":
+        def transform(images):
+            randomColorizeSet_library(images)
+            return images
+    elif name == "color":
+        gap = para.setdefault("gap", 50)
 
-    if name == "perspective":
+        def transform(images):
+            randomColorizeSet(images, gap=gap)
+            return images
+    # perspective
+    elif name == "perspective":
         scale = para.setdefault("scale", [0, 0.1])
         p = para.setdefault("p", 0.5)
 
@@ -565,16 +744,15 @@ def _getTransform(name, **para: dict):
         def transform(images):
             uniformAffineDirect(images, range14=a14, range23=a23, p=p)
             return images
-    elif name == "color":
-        gap = para.setdefault("gap", 50)
-
-        def transform(images):
-            randomColorizeSet(images, gap=gap)
-            return images
     elif name == "morph":
         def transform(images):
             p = para.setdefault("p", 0.5)
             randomMorph(images, para["patterns"], p=p)
+            return images
+    elif name == "morph_ski":
+        def transform(images):
+            p = para.setdefault("p", 0.5)
+            randomMorph_ski(images, para["patterns"], p=p)
             return images
     elif name == "gaussian_filter":
         sigma = para.setdefault("sigma", (0, 10))
@@ -603,13 +781,36 @@ def _getTransform(name, **para: dict):
 
 def getTransformFunc(para: list):
     trans = []
+    seeds = []
+
+    counter = dict()
+
     if para != None:
         for i in range(len(para)):
+            tran_name = para[i]["name"]
+            counter.setdefault(tran_name, 1)
             trans.append(_getTransform(**para[i]))
+            seeds.append(counter[tran_name])
+            counter[tran_name] += 1
 
     def transfunc(images):
-        for t in trans:
-            t(images)
+        for i in range(len(trans)):
+            global rng
+            rng = numpy.random.default_rng(seeds[i])
+            seeds[i] += 1
+            trans[i](images)
         return
 
     return transfunc
+
+
+if __name__ == "__main__":
+    shear=[-15,15]
+    n=10
+
+    n_shear=rng.uniform(low=shear[0],high=shear[1],size=(n,1))
+    shear_x=rng.uniform(low=0,high=1,size=(n,1))*n_shear
+
+    target_shear = numpy.hstack([shear_x,(n_shear-shear_x)])
+
+    print(target_shear)

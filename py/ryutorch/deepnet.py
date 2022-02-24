@@ -45,12 +45,15 @@ class MyVGG(nn.Module):
         # number of convolution layers per down sampling
         numlayer_perds=2,
         num_classes: int = 1000,
+        classifier_arch: str = "LDLD",
+
         feature_size: int = 4,
         feature_channel: int = 512,
-        classifier_arch: str = "LDLD",
+        channel_time: int = 2,
 
         input_size: int = 64,
         input_channel: int = 3,
+
         batch_norm=False,
         **kwargs
     ) -> None:
@@ -59,7 +62,7 @@ class MyVGG(nn.Module):
         self.input_size = input_size
         self.features_size = feature_channel * feature_size * feature_size
         self.features = self.make_feature(
-            numlayer_perds, feature_size, feature_channel, input_size, input_channel, batch_norm)
+            numlayer_perds, feature_size, feature_channel, channel_time, input_size, input_channel, batch_norm)
 
         self.avgpool = nn.AdaptiveAvgPool2d((feature_size, feature_size))
         self.classifier = make_classifier(
@@ -72,7 +75,7 @@ class MyVGG(nn.Module):
         x = self.classifier(x)
         return x
 
-    def make_feature(self, numlayer_perds, feature_size, feature_channel, input_size, input_channel: int, batch_norm):
+    def make_feature(self, numlayer_perds, feature_size, feature_channel, channel_time, input_size, input_channel: int, batch_norm):
         from math import log2
         num_dp = int(log2(input_size/feature_size))
         if isinstance(numlayer_perds, int):
@@ -83,7 +86,11 @@ class MyVGG(nn.Module):
 
         num_channels = []
         for i in range(num_dp):
-            num_channels.append(feature_channel//(2**(num_dp-i-1)))
+            channel = feature_channel//(channel_time**(num_dp-i-1))
+            if channel == 0:
+                raise ValueError(
+                    "Illegal parameter, calculated output channel of first conv is 0!")
+            num_channels.append(channel)
 
         layers: List[nn.Module] = []
         for dp in range(num_dp):
@@ -154,12 +161,12 @@ class MyNonePoolNet(nn.Module):
                 raise ValueError(
                     "Create MyNet: dim of kernel can't less than stride.")
             num_padding = [ceil((kernel_size-stride)/2)]*num_layers
-            kernel_size=[kernel_size]*num_layers
+            kernel_size = [kernel_size]*num_layers
         elif isinstance(kernel_size, list):
             if len(kernel_size) != num_layers or any(x < stride for x in kernel_size):
                 raise ValueError(
                     "Create Mynet: If kernel size is list, must have same length with num of layers, and all size should not less than stride.")
-            num_padding=[ceil((x-stride)/2) for x in kernel_size]
+            num_padding = [ceil((x-stride)/2) for x in kernel_size]
         else:
             raise ValueError("Kernel size must is int or list of int")
 
