@@ -1,11 +1,19 @@
 *
 !.gitignore
 !*/
-!*.md
+
+# bash script
+!*.sh
+
+# readme
+!readme.md
 
 # python files
 !*.py
 
-# system output
-!sscd_example.png
-/sscdpic
+# system output and cacsh
+output/
+error/
+graph/
+.vscode/
+__pycache__/

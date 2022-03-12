@@ -1,1 +1,0 @@
-/home/eugene/workspace/unpublic/paper/exdata.md
