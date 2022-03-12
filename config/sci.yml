@@ -1,0 +1,129 @@
+---
+Global:
+  save_result_dir: ./output/
+
+Train:
+  series: scikit
+
+  scikit:
+    algorithm:
+      name: knn
+      ensemble: True
+      ensemble_num: 120
+      knn:
+        n_neighbors: 1
+        weights: distance
+
+    feature:
+      - name: hog
+        hog:
+          img_size: 64
+          orientations: 5
+          pixels_per_cell: [8, 8]
+          cells_per_block: [8, 8]
+      - name: hog
+        hog:
+          img_size: 32
+          orientations: 5
+          pixels_per_cell: [4, 4]
+          cells_per_block: [8, 8]
+      - name: hog
+        hog:
+          img_size: 16
+          orientations: 5
+          pixels_per_cell: [2, 2]
+          cells_per_block: [8, 8]
+    process:
+      - sscd:
+          type: bunch
+          num: 1
+
+  dataset:
+    type: sscd
+    profile:
+      ttfpaths:
+        - /home/eugene/workspace/dataset/font/japanese7/AozoraMinchoRegular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/GenShinGothic-Regular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/logotypejp_corpmin.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/mgenplus-1c-regular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/mplus-1c-regular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/VL-Gothic-Regular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/yasashisa_gothic.ttf
+      dictpara:
+        dictpath: /home/eugene/workspace/dataset/dict/japanese_3107jp.txt
+        revise: False
+      fontsize: 64
+      padding: 2
+      transform:
+        # Perspective Transformation
+        # - name: perspective
+        #   scale: [-0.1, 0.2]
+        #   p: 1
+        - name: perspective_direct
+          scale: [-5,5]
+          p: 1
+
+        # Morphology Transformation
+        # - name: morph_ski
+        #   p: 1
+        #   patterns:
+        #     - dilation8
+        #     - erosion8
+        #     - none
+        - name: morph
+          p: 0.7
+          patterns:
+            - dilation4
+            - dilation8
+            - pushU
+            - pushD
+            # - none
+            # - notrans
+
+        # - name: gaussian_filter
+        #   sigma: [0, 10]
+        # Perspective Transformation
+        # - name: perspective
+        #   scale: [-0.1, 0.2]
+        #   p: 1
+        # - name: perspective_direct
+        #   scale: [-5,5]
+        #   p: 1
+        
+        # Affine Transformation
+        # - name: affine
+        #   rotation: 0
+        #   shear: [15, 15]
+        #   autoscale: True
+        #   p: 1
+        
+        # Color Generation 
+        # - name: color
+          # gap: 50
+        - name: color_lib
+        
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: gaussian_noise
+          mean: [0, 0]
+          var: [0.01, 0.01]
+
+Test:
+  dataset:
+    type: real
+    profile:
+      name: JPSC1400
+      dir: /home/eugene/workspace/dataset/scenetext/JPSC1400-20201218/rec_gt_test.txt
+      revise: False

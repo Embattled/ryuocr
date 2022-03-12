@@ -2,14 +2,18 @@
 !.gitignore
 !*/
 
+# config files
+!*.yml
+
 # bash script
 !*.sh
 
 # readme
 !readme.md
 
-# python files
+# python files and font
 !*.py
+!*.ttf
 
 # system output and cacsh
 output/

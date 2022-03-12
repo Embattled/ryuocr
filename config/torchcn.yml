@@ -1,0 +1,138 @@
+---
+Global:
+  save_result_dir: ./output/
+  pretrained_model: 2021-10-12-17-53-50
+
+Train:
+  series: torch
+  torch:
+    gpu: True
+    architecture:
+      # name: vgg11_offical
+      # name: resnet34_offical
+      # name: mobilenet_offical
+      # name: mynonepoolnet
+      name: myvgg
+      parameter:
+        # Only for mynonepoolnet
+        stride: 2
+
+        kernel_size: 4
+        numlayer_perds: 1
+
+        # classifier_arch: "LDLD"
+        classifier_arch: "DLD"
+
+        input_size: 64
+        input_channel: 3
+
+        feature_channel: 512
+        feature_size: 4
+        channel_time: 2
+
+        first33: False
+    loss:
+      name: crossentropy
+      # name: L2
+      # factor: 0.00001
+    process:
+      - loop: 1
+        sscd:
+          type: sample
+          num: 500000
+        para:
+          # epoch: ['loss',0.5]
+          epoch: 40
+          
+          batchsize: 128
+          shuffle: True
+          print: True
+          valid: True
+          iter_step: 100
+        optimizer:
+          name: adam
+          lr: 0.0001
+          betas: [0.9, 0.999]
+      # - loop: 50
+      #   sscd:
+      #     type: sample
+      #     # num: 50000
+      #     num: 20000
+      #     # type: bunch
+      #     # num: 1
+      #   para:
+      #     epoch: 1
+      #     batchsize: 128
+      #     shuffle: True
+      #     print: True
+      #     valid: True
+      #     iter_step: 100
+      #   optimizer:
+      #     name: adam
+      #     lr: 0.001
+      #     # betas: [0.9, 0.999]
+      #     scheduler:
+      #       name: lineral
+      #       # gamma: 0.9
+      #       endepoch: 50
+
+  dataset:
+    type: sscd
+    profile:
+      ttfpaths:
+        - /home/eugene/workspace/dataset/font/chinese/kaiti.ttf
+        - /home/eugene/workspace/dataset/font/chinese/simhei.ttf
+      dictpara:
+        dictpath: /home/eugene/workspace/dataset/dict/chinese_gb2312_rank1.txt
+        # dictpath: /home/eugene/workspace/dataset/dict/chinese_gb2312_full.txt
+        revise: False
+      fontsize: 64
+      padding: 2
+      transform:
+        - name: perspective
+          scale: [-0.1, 0.2]
+          p: 1
+        - name: morph
+          p: 0.7
+          patterns:
+            - dilation4
+            - dilation8
+            - pushU
+            - pushD
+        # - name: affine
+        #   rotation: 0
+        #   shear: [15, 15]
+        #   autoscale: True
+        #   p: 1
+        - name: color
+          gap: 50
+        # # -
+        # #   name: gaussian_noise
+        # #   mean: [0,0]
+        # #   var: [0.01,0.01]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: gaussian_noise
+          mean: [0, 0]
+          var: [0.01, 0.01]
+
+Test:
+  dataset:
+    type: real
+    profile:
+      name: pan_chi
+      dir: /home/eugene/workspace/dataset/used/pan_chi_ryu_cutted/pan_chi_total.txt
+      dictpath: /home/eugene/workspace/dataset/dict/chinese_gb2312_rank1.txt
+  revise: False

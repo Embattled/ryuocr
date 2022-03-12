@@ -1,0 +1,108 @@
+Train:
+  dataset:
+    type: sscd
+    profile:
+      ttfpaths:
+        # - /home/eugene/workspace/dataset/font/japanese7/AozoraMinchoRegular.ttf
+        # - /home/eugene/workspace/dataset/font/japanese7/GenShinGothic-Regular.ttf
+        # - /home/eugene/workspace/dataset/font/japanese7/logotypejp_corpmin.ttf
+        # - /home/eugene/workspace/dataset/font/japanese7/mgenplus-1c-regular.ttf
+        # - /home/eugene/workspace/dataset/font/japanese7/mplus-1c-regular.ttf
+        # - /home/eugene/workspace/dataset/font/japanese7/VL-Gothic-Regular.ttf
+        - /home/eugene/workspace/dataset/font/japanese7/yasashisa_gothic.ttf
+      dictpara:
+        # dictpath: ["主"]
+        # dictpath: ["口"]
+        # dictpath: ["あ"]
+        # dictpath: ["溝"]
+        # dictpath: ["目"]
+        # dictpath: ["聯"]
+        dictpath: ["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ","た","ち","つ","て","と","な","に","ぬ","ね","の"]
+        # dictpath: /home/eugene/workspace/dataset/dict/japanese_3107jp.txt
+        revise: False
+      fontsize: 64
+      padding: 2
+      transform:
+
+        # Affine Transformation
+        # - name: affine
+          # rotation: 0
+          # shear: [-15,15]
+          # autoscale: True
+          # scale: [1.5,1.5]
+          # p: 1
+
+        # Perspective Transformation
+        - name: perspective
+          scale: [-0.1, 0.2]
+          p: 1
+        # - name: perspective_direct
+        #   scale: [-5,5]
+        #   p: 1
+
+
+        # Morphology Transformation
+        # - name: morph_ski
+        #   p: 1
+        #   patterns:
+        #     - dilation8
+        #     - erosion8
+        #     - none
+
+        - name: morph
+          p: 1
+          patterns:
+        #     - dilation4
+        #     - dilation8
+            - pushU
+        #     - pushD
+            # - none
+            # - notrans
+            # - erosionhl
+            # - erosion8
+            # - erosion4
+            # - edge
+
+
+        # Perspective Transformation
+        # - name: perspective
+          # scale: [-0.1, 0.2]
+          # p: 1
+        # - name: perspective_direct
+        #   scale: [-5,5]
+        #   p: 1
+        
+        # Affine Transformation
+        #   name: affine
+        #   # rotation: [30,30]
+        #   shear: [-30,30]
+        #   autoscale: True
+        #   # scale: [1.5,1.5]
+        #   p: 1
+        
+        # Color Generation 
+        - name: color
+          gap: 50
+        # - name: color_lib
+        
+        - name: gaussian_filter
+          sigma: [0, 10]
+        - name: random_filter
+          scale: [-1, 1]
+        # - name: gaussian_filter
+        #   sigma: [0, 10]
+        # - name: random_filter
+        #   scale: [-1, 1]
+        # - name: gaussian_filter
+        #   sigma: [0, 10]
+        # - name: random_filter
+        #   scale: [-1, 1]
+        # - name: gaussian_filter
+        #   sigma: [0, 10]
+        # - name: random_filter
+        #   scale: [-1, 1]
+        # - name: gaussian_filter
+        #   sigma: [0, 10]
+        - name: gaussian_noise
+          mean: [0, 0]
+          var: [0.01, 0.01]
